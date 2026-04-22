@@ -127,10 +127,16 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
     pd.DataFrame
         合并后的 AQI 数据，包含 lat/lon 列
     """
+    print("=" * 50)
+    print("[DEBUG] get_latest_aqi_snapshot 开始执行")
+
     if data_dir is None:
         # __file__ = utils/excel_parser.py → 向上一级 = main/
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         data_dir = os.path.join(base_dir, 'data_output', 'aqi')
+
+    print(f"[DEBUG] 数据目录路径：{data_dir}")
+    print(f"[DEBUG] 目录是否存在：{os.path.exists(data_dir)}")
 
     if not os.path.exists(data_dir):
         print(f"[WARN] 数据目录不存在：{data_dir}")
@@ -139,23 +145,30 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
     # 1. 获取所有时间戳子目录，按名称排序取最新
     runs = [d for d in os.listdir(data_dir)
             if os.path.isdir(os.path.join(data_dir, d))]
+    print(f"[DEBUG] 找到批次子目录：{runs}")
+
     if not runs:
         print(f"[WARN] 未找到批次子目录：{data_dir}")
         return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon'])
 
     latest_run = sorted(runs)[-1]
     run_dir = os.path.join(data_dir, latest_run)
+    print(f"[DEBUG] 最新批次：{latest_run}")
+    print(f"[DEBUG] 最新批次完整路径：{run_dir}")
 
     # 2. 递归遍历该批次目录下所有 Excel（含区域子文件夹）
     all_cities_data = []
+    excel_count = 0
     for root, dirs, files in os.walk(run_dir):
         for file in files:
             if file.endswith('.xlsx') and not file.startswith('全国'):
                 file_path = os.path.join(root, file)
+                excel_count += 1
+                print(f"[DEBUG] 正在解析 Excel #{excel_count}：{file_path}")
                 try:
                     df_city = parse_aqi_excel(file_path)
+                    print(f"[DEBUG]   → 解析结果：{len(df_city)} 行，列名={list(df_city.columns)}")
                     if not df_city.empty and 'update_time' in df_city.columns:
-                        # 取每个城市的最新一条记录
                         latest = df_city.sort_values('update_time').iloc[-1]
                         all_cities_data.append(latest)
                     elif not df_city.empty:
@@ -163,8 +176,12 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
                 except Exception as e:
                     print(f"[ERROR] 解析失败：{file_path}，错误：{e}")
 
+    print(f"[DEBUG] 遍历 Excel 文件总数：{excel_count}")
+    print(f"[DEBUG] 成功解析城市数量：{len(all_cities_data)}")
+
     if not all_cities_data:
         print(f"[WARN] 批次目录下无有效数据：{run_dir}")
+        print("=" * 50)
         return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon'])
 
     df_snapshot = pd.DataFrame(all_cities_data).reset_index(drop=True)
@@ -175,6 +192,8 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
     df_snapshot['lon'] = df_snapshot['city_name'].apply(get_lon)
 
     print(f"[OK] 已加载 AQI 快照：{len(df_snapshot)} 个城市（批次：{latest_run}）")
+    print(f"[DEBUG] 城市列表：{list(df_snapshot['city_name'])}")
+    print("=" * 50)
     return df_snapshot
 
 
