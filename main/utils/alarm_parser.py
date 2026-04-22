@@ -40,10 +40,11 @@ def get_latest_alarms(data_folder=None):
     从 data_output/alarms/ 目录获取最新批次的气象预警数据。
 
     查找逻辑：
-      1. 默认使用 main/data_output/alarms/ 目录
-      2. 筛选以 "全国预警信息_" 开头的 .xlsx 文件
-      3. 按修改时间排序，取最新的一个
-      4. 使用 pandas 读取并映射为标准列名
+      1. 优先使用 os.getcwd() + main/data_output/alarms/
+      2. 如果该目录不存在，回退到相对于当前文件的路径
+      3. 筛选以 "全国预警信息_" 开头的 .xlsx 文件
+      4. 按修改时间排序，取最新的一个
+      5. 使用 pandas 读取并映射为标准列名
 
     Parameters
     ----------
@@ -64,13 +65,29 @@ def get_latest_alarms(data_folder=None):
     try:
         debug_info.append("=" * 50)
         debug_info.append("[开始] get_latest_alarms 执行")
+        debug_info.append(f"[路径] os.getcwd() = {os.getcwd()}")
 
-        # ---- 确定数据目录 ----
+        # ---- 确定数据目录（双路径策略）----
         if data_folder is None:
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            data_folder = os.path.join(base_dir, 'data_output', 'alarms')
+            # 策略1：以当前工作目录为基准
+            cwd_based = os.path.join(os.getcwd(), 'main', 'data_output', 'alarms')
+            # 策略2：以当前文件为基准（备用）
+            file_based = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'data_output', 'alarms'
+            )
 
-        debug_info.append(f"[路径] 数据目录 = {data_folder}")
+            debug_info.append(f"[路径] 策略1(工作目录) = {cwd_based}")
+            debug_info.append(f"[路径] 策略2(文件相对) = {file_based}")
+
+            if os.path.exists(cwd_based):
+                data_folder = cwd_based
+            elif os.path.exists(file_based):
+                data_folder = file_based
+            else:
+                data_folder = cwd_based  # 默认用策略1，后续会报目录不存在
+
+        debug_info.append(f"[路径] 实际使用 = {data_folder}")
         debug_info.append(f"[路径] 目录是否存在 = {os.path.exists(data_folder)}")
 
         if not os.path.exists(data_folder):
@@ -79,17 +96,17 @@ def get_latest_alarms(data_folder=None):
             return empty_df, '', debug_info
 
         # ---- 查找匹配的 xlsx 文件 ----
-        all_xlsx = glob.glob(os.path.join(data_folder, '**', '*.xlsx'), recursive=True)
+        matched_files = glob.glob(os.path.join(data_folder, '全国预警信息_*.xlsx'))
         # 排除临时文件
-        all_xlsx = [f for f in all_xlsx if not os.path.basename(f).startswith('~')]
-        # 只保留以 "全国预警信息_" 开头的文件
-        matched_files = [
-            f for f in all_xlsx
-            if os.path.basename(f).startswith('全国预警信息_')
-        ]
+        matched_files = [f for f in matched_files if not os.path.basename(f).startswith('~')]
 
-        debug_info.append(f"[统计] 目录下共 {len(all_xlsx)} 个 xlsx 文件")
-        debug_info.append(f"[统计] 匹配 '全国预警信息_' 前缀的文件 = {len(matched_files)}")
+        # 备用：递归搜索子目录
+        if not matched_files:
+            all_xlsx = glob.glob(os.path.join(data_folder, '**', '全国预警信息_*.xlsx'), recursive=True)
+            all_xlsx = [f for f in all_xlsx if not os.path.basename(f).startswith('~')]
+            matched_files = all_xlsx
+
+        debug_info.append(f"[统计] 匹配 '全国预警信息_' 的文件 = {len(matched_files)}")
 
         if not matched_files:
             debug_info.append("[提示] 没有找到以 '全国预警信息_' 开头的 xlsx 文件，请先运行 weather_alarm_crawler")
