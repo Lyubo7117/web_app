@@ -63,10 +63,17 @@ def parse_aqi_excel(file_path: str) -> pd.DataFrame:
     """
     解析单个 AQI Excel 文件（national_aqi_crawler 产出）。
 
-    爬虫产出的 Excel 通常包含以下列（可能 sheet 名不同）：
-      城市、AQI、PM2.5、PM10、CO、NO2、SO2、O3、首要污染物、等级、数据时间
+    爬虫生成的 Excel 结构：
+      第1行：标题（城市名）
+      第2行：元数据（采集日期等）
+      第3行：列名（可能含 \\n 换行符，如 "AQI\\n指数"）
+      第4行起：数据
 
-    本函数会将列名统一映射为标准列名。
+    本函数：
+      1. header=2 读取（跳过前两行，以第3行为列名）
+      2. 清洗列名（去换行符、去空格）
+      3. 智能匹配字段 → 标准列名
+      4. 从文件名提取城市名
 
     Parameters
     ----------
@@ -78,32 +85,83 @@ def parse_aqi_excel(file_path: str) -> pd.DataFrame:
     pd.DataFrame
         标准化后的 DataFrame
     """
-    if not os.path.exists(file_path):
-        return pd.DataFrame(columns=AQI_COLUMNS)
-
-    # 列名映射：爬虫原始列名 → 标准列名
-    col_map = {
-        '城市': 'city_name', 'AQI': 'aqi', 'PM2.5': 'pm25',
-        'PM10': 'pm10', 'CO': 'co', 'NO2': 'no2', 'SO2': 'so2',
-        'O3': 'o3', '首要污染物': 'pollutant', '等级': 'level',
-        '数据时间': 'update_time', '监测时间': 'update_time',
-    }
-
     try:
-        # 读取第一个 sheet
-        df = pd.read_excel(file_path, engine='openpyxl')
+        # ---- 1. 读取 Excel（header=2，第3行为列名）----
+        df = pd.read_excel(file_path, header=2, engine='openpyxl')
 
-        # 列名标准化
+        if df.empty:
+            return pd.DataFrame(columns=AQI_COLUMNS)
+
+        # ---- 2. 清洗列名 ----
+        # 去换行符、去首尾空格
+        df.columns = [str(c).replace('\n', '').replace('\r', '').strip() for c in df.columns]
+
+        # ---- 3. 智能列名映射 ----
+        col_map = {
+            '日期时间': 'update_time',
+            # AQI — 可能是 "AQI指数" 或 "AQI（空气质量指数）"
+            'AQI指数': 'aqi',
+            'AQI（空气质量指数）': 'aqi',
+            'AQI(空气质量指数)': 'aqi',
+            # 等级
+            'AQI等级': 'level',
+            # 首要污染物
+            '首要污染物': 'pollutant',
+            # PM2.5
+            'PM2.5（μg/m³）': 'pm25',
+            'PM2.5(μg/m³)': 'pm25',
+            'PM2.5': 'pm25',
+            # PM10
+            'PM10（μg/m³）': 'pm10',
+            'PM10(μg/m³)': 'pm10',
+            'PM10': 'pm10',
+            # CO
+            'CO（mg/m³）': 'co',
+            'CO(mg/m³)': 'co',
+            'CO': 'co',
+            # NO2 — 原始列名含下标 ₂
+            'NO₂（μg/m³）': 'no2',
+            'NO₂(μg/m³)': 'no2',
+            'NO2': 'no2',
+            'NO₂': 'no2',
+            # O3 — 原始列名是 O₃_1h均值 或 O₃_1h
+            'O₃_1h均值（μg/m³）': 'o3',
+            'O₃_1h均值(μg/m³)': 'o3',
+            'O₃_1h（μg/m³）': 'o3',
+            'O₃_1h(μg/m³)': 'o3',
+            'O3_1h均值（μg/m³）': 'o3',
+            'O3': 'o3',
+            # SO2 — 原始列名含下标 ₂
+            'SO₂（μg/m³）': 'so2',
+            'SO₂(μg/m³)': 'so2',
+            'SO2': 'so2',
+            'SO₂': 'so2',
+        }
+
         df.rename(columns=col_map, inplace=True)
 
-        # 只保留标准列
+        # ---- 4. 只保留标准列（存在的才留）----
         existing_cols = [c for c in AQI_COLUMNS if c in df.columns]
         df = df[existing_cols]
+
+        # ---- 5. 从文件名提取城市名 ----
+        # 文件名格式：北京_20260422_184901.xlsx
+        basename = os.path.splitext(os.path.basename(file_path))[0]
+        parts = basename.split('_')
+        if len(parts) >= 1:
+            city_name = parts[0]
+        else:
+            city_name = '未知'
+        df['city_name'] = city_name
+
+        # 确保 city_name 在最前面
+        final_cols = ['city_name'] + [c for c in AQI_COLUMNS if c in df.columns and c != 'city_name']
+        df = df[final_cols]
 
         return df
 
     except Exception as e:
-        print(f"[ERROR] 解析 AQI Excel 失败：{file_path}\n  原因：{e}")
+        print(f"[ERROR] 解析 AQI Excel 失败：{file_path}\n  异常类型：{type(e).__name__}\n  错误信息：{e}")
         return pd.DataFrame(columns=AQI_COLUMNS)
 
 
