@@ -128,7 +128,7 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
         合并后的 AQI 数据，包含 lat/lon 列
     """
     if data_dir is None:
-        base = os.path.join(os.path.dirname(__file__), '..', '..')
+        base = os.path.join(os.path.dirname(__file__), '..')
         data_dir = os.path.normpath(os.path.join(base, 'data_output', 'aqi'))
 
     # 1. 找到最新批次

@@ -32,11 +32,12 @@ warnings.filterwarnings('ignore')
 # 输出路径配置（自动适配本地运行 / GitHub Actions）
 # ═══════════════════════════════════════════════
 
-# 无论从哪里运行，都输出到项目根目录下的 data_output/aqi/
-PROJECT_ROOT = os.path.normpath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), '..', '..'
+# 输出到 main/data_output/aqi/
+# 从 main/crawlers/national_aqi_crawler.py 向上一级 = main/
+MAIN_DIR = os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..'
 ))
-DATA_OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'data_output', 'aqi')
+DATA_OUTPUT_DIR = os.path.join(MAIN_DIR, 'data_output', 'aqi')
 
 
 # ═══════════════════════════════════════════════
