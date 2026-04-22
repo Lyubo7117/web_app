@@ -61,19 +61,8 @@ def _find_latest_batch(data_dir: str) -> str:
 
 def parse_aqi_excel(file_path: str) -> pd.DataFrame:
     """
-    解析单个 AQI Excel 文件（national_aqi_crawler 产出）。
-
-    爬虫生成的 Excel 结构：
-      第1行：标题（城市名）
-      第2行：元数据（采集日期等）
-      第3行：列名（可能含 \\n 换行符，如 "AQI\\n指数"）
-      第4行起：数据
-
-    本函数：
-      1. header=2 读取（跳过前两行，以第3行为列名）
-      2. 清洗列名（去换行符、去空格）
-      3. 智能匹配字段 → 标准列名
-      4. 从文件名提取城市名
+    解析爬虫生成的 Excel 文件，返回标准格式 DataFrame
+    使用 openpyxl 直接读取固定位置的单元格，绕过 pandas 表头识别问题
 
     Parameters
     ----------
@@ -85,84 +74,62 @@ def parse_aqi_excel(file_path: str) -> pd.DataFrame:
     pd.DataFrame
         标准化后的 DataFrame
     """
+    import pandas as pd
+    import os
+    from openpyxl import load_workbook
+
     try:
-        # ---- 1. 读取 Excel（header=2，第3行为列名）----
-        df = pd.read_excel(file_path, header=2, engine='openpyxl')
+        # 提取城市名
+        filename = os.path.basename(file_path)
+        city = filename.split('_')[0]
 
-        if df.empty:
-            return pd.DataFrame(columns=AQI_COLUMNS)
+        wb = load_workbook(file_path, data_only=True)
+        ws = wb.active
 
-        # ---- 2. 清洗列名 ----
-        # 去换行符、去首尾空格
-        df.columns = [str(c).replace('\n', '').replace('\r', '').strip() for c in df.columns]
+        records = []
+        # 数据从第4行开始，第1列为日期时间
+        for row_idx in range(4, ws.max_row + 1):
+            cell_a = ws.cell(row_idx, 1).value
+            if cell_a is None or '统计' in str(cell_a):
+                break
 
-        # ---- 3. 智能列名映射 ----
-        col_map = {
-            '日期时间': 'update_time',
-            # AQI — 可能是 "AQI指数" 或 "AQI（空气质量指数）"
-            'AQI指数': 'aqi',
-            'AQI（空气质量指数）': 'aqi',
-            'AQI(空气质量指数)': 'aqi',
-            # 等级
-            'AQI等级': 'level',
-            # 首要污染物
-            '首要污染物': 'pollutant',
-            # PM2.5
-            'PM2.5（μg/m³）': 'pm25',
-            'PM2.5(μg/m³)': 'pm25',
-            'PM2.5': 'pm25',
-            # PM10
-            'PM10（μg/m³）': 'pm10',
-            'PM10(μg/m³)': 'pm10',
-            'PM10': 'pm10',
-            # CO
-            'CO（mg/m³）': 'co',
-            'CO(mg/m³)': 'co',
-            'CO': 'co',
-            # NO2 — 原始列名含下标 ₂
-            'NO₂（μg/m³）': 'no2',
-            'NO₂(μg/m³)': 'no2',
-            'NO2': 'no2',
-            'NO₂': 'no2',
-            # O3 — 原始列名是 O₃_1h均值 或 O₃_1h
-            'O₃_1h均值（μg/m³）': 'o3',
-            'O₃_1h均值(μg/m³)': 'o3',
-            'O₃_1h（μg/m³）': 'o3',
-            'O₃_1h(μg/m³)': 'o3',
-            'O3_1h均值（μg/m³）': 'o3',
-            'O3': 'o3',
-            # SO2 — 原始列名含下标 ₂
-            'SO₂（μg/m³）': 'so2',
-            'SO₂(μg/m³)': 'so2',
-            'SO2': 'so2',
-            'SO₂': 'so2',
-        }
+            dt = ws.cell(row_idx, 1).value  # 日期时间
+            aqi = ws.cell(row_idx, 4).value  # AQI
+            level = ws.cell(row_idx, 5).value  # 等级
+            primary = ws.cell(row_idx, 6).value  # 首要污染物
+            pm25 = ws.cell(row_idx, 7).value  # PM2.5
+            pm10 = ws.cell(row_idx, 8).value  # PM10
+            co = ws.cell(row_idx, 9).value  # CO
+            no2 = ws.cell(row_idx, 10).value  # NO2
+            o3 = ws.cell(row_idx, 11).value  # O3_1h
+            so2 = ws.cell(row_idx, 13).value  # SO2（跳过第12列O3_8h）
 
-        df.rename(columns=col_map, inplace=True)
+            records.append({
+                'city': city,
+                'datetime': dt,
+                'aqi': aqi,
+                'level': level,
+                'primary_pollutant': primary,
+                'pm25': pm25,
+                'pm10': pm10,
+                'co': co,
+                'no2': no2,
+                'o3': o3,
+                'so2': so2
+            })
 
-        # ---- 4. 只保留标准列（存在的才留）----
-        existing_cols = [c for c in AQI_COLUMNS if c in df.columns]
-        df = df[existing_cols]
+        df = pd.DataFrame(records)
+        # 数值列转换
+        numeric_cols = ['aqi', 'pm25', 'pm10', 'co', 'no2', 'o3', 'so2']
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        # ---- 5. 从文件名提取城市名 ----
-        # 文件名格式：北京_20260422_184901.xlsx
-        basename = os.path.splitext(os.path.basename(file_path))[0]
-        parts = basename.split('_')
-        if len(parts) >= 1:
-            city_name = parts[0]
-        else:
-            city_name = '未知'
-        df['city_name'] = city_name
-
-        # 确保 city_name 在最前面
-        final_cols = ['city_name'] + [c for c in AQI_COLUMNS if c in df.columns and c != 'city_name']
-        df = df[final_cols]
-
+        print(f"解析成功：{city}，行数={len(df)}")
         return df
 
     except Exception as e:
-        print(f"[ERROR] 解析 AQI Excel 失败：{file_path}\n  异常类型：{type(e).__name__}\n  错误信息：{e}")
-        return pd.DataFrame(columns=AQI_COLUMNS)
+        print(f"解析Excel失败 {file_path}: {e}")
+        return pd.DataFrame()
 
 
 def get_latest_aqi_snapshot(data_dir: str = None):
@@ -258,12 +225,12 @@ def get_latest_aqi_snapshot(data_dir: str = None):
                     continue
 
                 # 取最新一条记录
-                if 'update_time' in df_city.columns:
-                    row = df_city.sort_values('update_time').iloc[-1]
+                if 'datetime' in df_city.columns:
+                    row = df_city.sort_values('datetime').iloc[-1]
                 else:
                     row = df_city.iloc[-1]
 
-                city_name = str(row.get('city_name', '未知'))
+                city_name = str(row.get('city', '未知'))
                 aqi_val = row.get('aqi', 'N/A')
                 debug_info.append(f"  [成功] {city_name} — AQI={aqi_val}")
                 all_cities_data.append(row)
@@ -282,6 +249,10 @@ def get_latest_aqi_snapshot(data_dir: str = None):
 
         # ---- 合并 + 补经纬度 ----
         df_snapshot = pd.DataFrame(all_cities_data).reset_index(drop=True)
+
+        # 将 city 列统一重命名为 city_name，保持前端接口一致
+        if 'city' in df_snapshot.columns and 'city_name' not in df_snapshot.columns:
+            df_snapshot.rename(columns={'city': 'city_name'}, inplace=True)
 
         try:
             from utils.city_coords import get_lat, get_lon
