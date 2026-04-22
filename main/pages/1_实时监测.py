@@ -185,7 +185,7 @@ for _, row in df_map.iterrows():
     except (ValueError, TypeError):
         continue
 
-    radius = aqi_val / 10 + 2
+    radius = aqi_val / 5 + 5
     color = aqi_color(aqi_val)
     level = aqi_level_text(aqi_val)
 
