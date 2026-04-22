@@ -160,9 +160,16 @@ with right_col:
 # ==============================
 st.subheader("🗺️ 全国空气质量分布")
 
+df_map = df.copy()
+df_map = df_map[df_map['aqi'].notna()]
+
+if df_map.empty:
+    st.warning("暂无有效的AQI数据，无法生成热力图")
+    st.stop()
+
 m = folium.Map(location=[35, 110], zoom_start=4, tiles='CartoDB positron')
 
-for _, row in df.iterrows():
+for _, row in df_map.iterrows():
     try:
         city = str(row.get('city_name', ''))
         aqi_val = float(row.get('aqi', 0))
