@@ -112,15 +112,15 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
     从 data_output/aqi/ 目录获取最新批次的 AQI 快照数据。
 
     会自动：
-    1. 找到最新批次文件夹
-    2. 读取其中所有 Excel 文件
-    3. 合并为一个 DataFrame
+    1. 找到最新批次文件夹（按日期时间戳子目录）
+    2. 递归遍历该目录下所有 Excel 文件（含区域子文件夹）
+    3. 取每个城市的最新一条记录，合并为一个 DataFrame
     4. 为每个城市补充经纬度
 
     Parameters
     ----------
     data_dir : str, optional
-        AQI 数据目录路径。默认为项目根目录下的 data_output/aqi/
+        AQI 数据目录路径。默认为 main/data_output/aqi/
 
     Returns
     -------
@@ -128,39 +128,54 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
         合并后的 AQI 数据，包含 lat/lon 列
     """
     if data_dir is None:
-        base = os.path.join(os.path.dirname(__file__), '..')
-        data_dir = os.path.normpath(os.path.join(base, 'data_output', 'aqi'))
+        # __file__ = utils/excel_parser.py → 向上一级 = main/
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_dir = os.path.join(base_dir, 'data_output', 'aqi')
 
-    # 1. 找到最新批次
-    batch_dir = _find_latest_batch(data_dir)
-    if not batch_dir:
-        print(f"[WARN] 未找到 AQI 数据批次目录：{data_dir}")
+    if not os.path.exists(data_dir):
+        print(f"[WARN] 数据目录不存在：{data_dir}")
         return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon'])
 
-    # 2. 读取该批次下所有 Excel 文件
-    excel_files = glob.glob(os.path.join(batch_dir, '*.xlsx'))
-    if not excel_files:
-        print(f"[WARN] 批次目录下无 Excel 文件：{batch_dir}")
+    # 1. 获取所有时间戳子目录，按名称排序取最新
+    runs = [d for d in os.listdir(data_dir)
+            if os.path.isdir(os.path.join(data_dir, d))]
+    if not runs:
+        print(f"[WARN] 未找到批次子目录：{data_dir}")
         return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon'])
 
-    dfs = []
-    for f in excel_files:
-        df = parse_aqi_excel(f)
-        if not df.empty:
-            dfs.append(df)
+    latest_run = sorted(runs)[-1]
+    run_dir = os.path.join(data_dir, latest_run)
 
-    if not dfs:
+    # 2. 递归遍历该批次目录下所有 Excel（含区域子文件夹）
+    all_cities_data = []
+    for root, dirs, files in os.walk(run_dir):
+        for file in files:
+            if file.endswith('.xlsx') and not file.startswith('全国'):
+                file_path = os.path.join(root, file)
+                try:
+                    df_city = parse_aqi_excel(file_path)
+                    if not df_city.empty and 'update_time' in df_city.columns:
+                        # 取每个城市的最新一条记录
+                        latest = df_city.sort_values('update_time').iloc[-1]
+                        all_cities_data.append(latest)
+                    elif not df_city.empty:
+                        all_cities_data.append(df_city.iloc[-1])
+                except Exception as e:
+                    print(f"[ERROR] 解析失败：{file_path}，错误：{e}")
+
+    if not all_cities_data:
+        print(f"[WARN] 批次目录下无有效数据：{run_dir}")
         return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon'])
 
-    merged = pd.concat(dfs, ignore_index=True)
+    df_snapshot = pd.DataFrame(all_cities_data).reset_index(drop=True)
 
     # 3. 补充经纬度
     from utils.city_coords import get_lat, get_lon
-    merged['lat'] = merged['city_name'].apply(get_lat)
-    merged['lon'] = merged['city_name'].apply(get_lon)
+    df_snapshot['lat'] = df_snapshot['city_name'].apply(get_lat)
+    df_snapshot['lon'] = df_snapshot['city_name'].apply(get_lon)
 
-    print(f"[OK] 已加载 AQI 快照：{len(merged)} 条记录（批次：{os.path.basename(batch_dir)}）")
-    return merged
+    print(f"[OK] 已加载 AQI 快照：{len(df_snapshot)} 个城市（批次：{latest_run}）")
+    return df_snapshot
 
 
 def parse_uploaded_excel(uploaded_file) -> pd.DataFrame:
