@@ -59,7 +59,7 @@ def _find_latest_batch(data_dir: str) -> str:
     return subdirs[0]
 
 
-def parse_aqi_excel(file_path: str) -> pd.DataFrame:
+def parse_aqi_excel(file_path: str, debug_info=None) -> pd.DataFrame:
     """
     解析爬虫生成的 Excel 文件，返回标准格式 DataFrame
     使用 openpyxl 直接读取固定位置的单元格，绕过 pandas 表头识别问题
@@ -68,6 +68,8 @@ def parse_aqi_excel(file_path: str) -> pd.DataFrame:
     ----------
     file_path : str
         Excel 文件的绝对路径
+    debug_info : list, optional
+        调试信息列表。传入时将解析日志追加到此列表中。
 
     Returns
     -------
@@ -78,6 +80,10 @@ def parse_aqi_excel(file_path: str) -> pd.DataFrame:
     import os
     from openpyxl import load_workbook
 
+    def _log(msg):
+        if debug_info is not None:
+            debug_info.append(msg)
+
     try:
         # 提取城市名
         filename = os.path.basename(file_path)
@@ -85,6 +91,8 @@ def parse_aqi_excel(file_path: str) -> pd.DataFrame:
 
         wb = load_workbook(file_path, data_only=True)
         ws = wb.active
+
+        _log(f"  [解析] {city} — 工作表名={ws.title}，总行数={ws.max_row}")
 
         records = []
         # 数据从第4行开始，第1列为日期时间
@@ -124,11 +132,11 @@ def parse_aqi_excel(file_path: str) -> pd.DataFrame:
         for col in numeric_cols:
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        print(f"解析成功：{city}，行数={len(df)}")
+        _log(f"  [成功] {city} — 行数={len(df)}，实际列名={list(df.columns)}")
         return df
 
     except Exception as e:
-        print(f"解析Excel失败 {file_path}: {e}")
+        _log(f"  [失败] {os.path.basename(file_path)} — {type(e).__name__}: {e}")
         return pd.DataFrame()
 
 
@@ -217,10 +225,9 @@ def get_latest_aqi_snapshot(data_dir: str = None):
 
         for file_path in xlsx_files_filtered:
             try:
-                df_city = parse_aqi_excel(file_path)
+                df_city = parse_aqi_excel(file_path, debug_info=debug_info)
 
                 if df_city.empty:
-                    debug_info.append(f"  [跳过] {os.path.basename(file_path)}：解析结果为空")
                     fail_count += 1
                     continue
 
@@ -232,7 +239,6 @@ def get_latest_aqi_snapshot(data_dir: str = None):
 
                 city_name = str(row.get('city', '未知'))
                 aqi_val = row.get('aqi', 'N/A')
-                debug_info.append(f"  [成功] {city_name} — AQI={aqi_val}")
                 all_cities_data.append(row)
                 success_count += 1
 
