@@ -107,7 +107,7 @@ def parse_aqi_excel(file_path: str) -> pd.DataFrame:
         return pd.DataFrame(columns=AQI_COLUMNS)
 
 
-def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
+def get_latest_aqi_snapshot(data_dir: str = None):
     """
     从 data_output/aqi/ 目录获取最新批次的 AQI 快照数据。
 
@@ -124,37 +124,40 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
-        合并后的 AQI 数据，包含 lat/lon 列
+    tuple: (pd.DataFrame, str, list)
+        - df: 合并后的 AQI 数据，包含 lat/lon 列
+        - run_dir: 最新批次目录路径（用于前端显示）
+        - debug_info: 调试信息列表（用于前端展示）
     """
-    print("=" * 50)
-    print("[DEBUG] get_latest_aqi_snapshot 开始执行")
+    debug_info = []
+    debug_info.append("=" * 50)
+    debug_info.append("get_latest_aqi_snapshot 开始执行")
 
     if data_dir is None:
         # __file__ = utils/excel_parser.py → 向上一级 = main/
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         data_dir = os.path.join(base_dir, 'data_output', 'aqi')
 
-    print(f"[DEBUG] 数据目录路径：{data_dir}")
-    print(f"[DEBUG] 目录是否存在：{os.path.exists(data_dir)}")
+    debug_info.append(f"数据目录路径：{data_dir}")
+    debug_info.append(f"目录是否存在：{os.path.exists(data_dir)}")
 
     if not os.path.exists(data_dir):
-        print(f"[WARN] 数据目录不存在：{data_dir}")
-        return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon'])
+        debug_info.append(f"数据目录不存在：{data_dir}")
+        return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon']), '', debug_info
 
     # 1. 获取所有时间戳子目录，按名称排序取最新
     runs = [d for d in os.listdir(data_dir)
             if os.path.isdir(os.path.join(data_dir, d))]
-    print(f"[DEBUG] 找到批次子目录：{runs}")
+    debug_info.append(f"找到批次子目录：{runs}")
 
     if not runs:
-        print(f"[WARN] 未找到批次子目录：{data_dir}")
-        return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon'])
+        debug_info.append(f"未找到批次子目录：{data_dir}")
+        return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon']), '', debug_info
 
     latest_run = sorted(runs)[-1]
     run_dir = os.path.join(data_dir, latest_run)
-    print(f"[DEBUG] 最新批次：{latest_run}")
-    print(f"[DEBUG] 最新批次完整路径：{run_dir}")
+    debug_info.append(f"最新批次：{latest_run}")
+    debug_info.append(f"最新批次完整路径：{run_dir}")
 
     # 2. 递归遍历该批次目录下所有 Excel（含区域子文件夹）
     all_cities_data = []
@@ -164,25 +167,25 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
             if file.endswith('.xlsx') and not file.startswith('全国'):
                 file_path = os.path.join(root, file)
                 excel_count += 1
-                print(f"[DEBUG] 正在解析 Excel #{excel_count}：{file_path}")
+                debug_info.append(f"正在解析 Excel #{excel_count}：{os.path.basename(file_path)}")
                 try:
                     df_city = parse_aqi_excel(file_path)
-                    print(f"[DEBUG]   → 解析结果：{len(df_city)} 行，列名={list(df_city.columns)}")
+                    debug_info.append(f"  -> 解析结果：{len(df_city)} 行，列名={list(df_city.columns)}")
                     if not df_city.empty and 'update_time' in df_city.columns:
                         latest = df_city.sort_values('update_time').iloc[-1]
                         all_cities_data.append(latest)
                     elif not df_city.empty:
                         all_cities_data.append(df_city.iloc[-1])
                 except Exception as e:
-                    print(f"[ERROR] 解析失败：{file_path}，错误：{e}")
+                    debug_info.append(f"解析失败：{os.path.basename(file_path)}，原因：{e}")
 
-    print(f"[DEBUG] 遍历 Excel 文件总数：{excel_count}")
-    print(f"[DEBUG] 成功解析城市数量：{len(all_cities_data)}")
+    debug_info.append(f"遍历 Excel 文件总数：{excel_count}")
+    debug_info.append(f"成功解析城市数量：{len(all_cities_data)}")
 
     if not all_cities_data:
-        print(f"[WARN] 批次目录下无有效数据：{run_dir}")
-        print("=" * 50)
-        return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon'])
+        debug_info.append(f"批次目录下无有效数据：{run_dir}")
+        debug_info.append("=" * 50)
+        return pd.DataFrame(columns=AQI_COLUMNS + ['lat', 'lon']), run_dir, debug_info
 
     df_snapshot = pd.DataFrame(all_cities_data).reset_index(drop=True)
 
@@ -191,10 +194,10 @@ def get_latest_aqi_snapshot(data_dir: str = None) -> pd.DataFrame:
     df_snapshot['lat'] = df_snapshot['city_name'].apply(get_lat)
     df_snapshot['lon'] = df_snapshot['city_name'].apply(get_lon)
 
-    print(f"[OK] 已加载 AQI 快照：{len(df_snapshot)} 个城市（批次：{latest_run}）")
-    print(f"[DEBUG] 城市列表：{list(df_snapshot['city_name'])}")
-    print("=" * 50)
-    return df_snapshot
+    debug_info.append(f"已加载 AQI 快照：{len(df_snapshot)} 个城市（批次：{latest_run}）")
+    debug_info.append(f"城市列表：{list(df_snapshot['city_name'])}")
+    debug_info.append("=" * 50)
+    return df_snapshot, run_dir, debug_info
 
 
 def parse_uploaded_excel(uploaded_file) -> pd.DataFrame:
