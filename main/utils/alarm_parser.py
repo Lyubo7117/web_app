@@ -4,6 +4,8 @@ alarm_parser.py
 
 用于从 data_output/alarms/ 目录中查找并解析 weather_alarm_crawler 生成的
 预警 Excel 文件，返回标准化 DataFrame，供 Streamlit 页面直接使用。
+
+纯数据处理模块，不依赖 streamlit。
 """
 
 import os
@@ -21,8 +23,8 @@ ALARM_COLUMNS = [
 
 # 原始 Excel 列名 → 标准列名的映射
 _COLUMN_MAP = {
-    '省份':   'province',
-    '城市':   'city',
+    '省份':     'province',
+    '城市':     'city',
     '预警类型': 'alarm_type',
     '预警等级': 'alarm_level',
     '发布时间': 'publish_time',
@@ -39,8 +41,9 @@ def get_latest_alarms(data_folder=None):
 
     查找逻辑：
       1. 默认使用 main/data_output/alarms/ 目录
-      2. 按修改时间排序，取最新的 .xlsx 文件
-      3. 使用 pandas 读取并映射为标准列名
+      2. 筛选以 "全国预警信息_" 开头的 .xlsx 文件
+      3. 按修改时间排序，取最新的一个
+      4. 使用 pandas 读取并映射为标准列名
 
     Parameters
     ----------
@@ -51,7 +54,7 @@ def get_latest_alarms(data_folder=None):
     Returns
     -------
     tuple: (pd.DataFrame, str, list)
-        - df: 标准化后的预警 DataFrame
+        - df: 标准化后的预警 DataFrame（字段：省份、城市、预警类型、预警等级、发布时间、解除时间）
         - latest_file: 最新文件路径（无文件时为空字符串）
         - debug_info: 调试信息列表
     """
@@ -75,20 +78,27 @@ def get_latest_alarms(data_folder=None):
             debug_info.append("=" * 50)
             return empty_df, '', debug_info
 
-        # ---- 查找最新的 xlsx 文件 ----
-        xlsx_files = glob.glob(os.path.join(data_folder, '**', '*.xlsx'), recursive=True)
-        xlsx_files = [f for f in xlsx_files if not os.path.basename(f).startswith('~')]  # 排除临时文件
+        # ---- 查找匹配的 xlsx 文件 ----
+        all_xlsx = glob.glob(os.path.join(data_folder, '**', '*.xlsx'), recursive=True)
+        # 排除临时文件
+        all_xlsx = [f for f in all_xlsx if not os.path.basename(f).startswith('~')]
+        # 只保留以 "全国预警信息_" 开头的文件
+        matched_files = [
+            f for f in all_xlsx
+            if os.path.basename(f).startswith('全国预警信息_')
+        ]
 
-        debug_info.append(f"[统计] 找到 {len(xlsx_files)} 个 xlsx 文件")
+        debug_info.append(f"[统计] 目录下共 {len(all_xlsx)} 个 xlsx 文件")
+        debug_info.append(f"[统计] 匹配 '全国预警信息_' 前缀的文件 = {len(matched_files)}")
 
-        if not xlsx_files:
-            debug_info.append("[提示] 目录下没有 xlsx 文件，请先运行 weather_alarm_crawler")
+        if not matched_files:
+            debug_info.append("[提示] 没有找到以 '全国预警信息_' 开头的 xlsx 文件，请先运行 weather_alarm_crawler")
             debug_info.append("=" * 50)
             return empty_df, '', debug_info
 
         # 按修改时间倒序，取最新的
-        xlsx_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-        latest_file = xlsx_files[0]
+        matched_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        latest_file = matched_files[0]
         debug_info.append(f"[文件] 最新文件 = {os.path.basename(latest_file)}")
         debug_info.append(f"[文件] 完整路径 = {latest_file}")
 
@@ -110,9 +120,9 @@ def get_latest_alarms(data_folder=None):
         existing_cols = [c for c in ALARM_COLUMNS if c in df.columns]
         df = df[existing_cols]
 
-        # 如果原始数据没有"省份"列，尝试从城市名推断
+        # 如果原始数据没有"省份"列，提示一下
         if 'province' not in df.columns and 'city' in df.columns:
-            debug_info.append("[提示] 原始数据无"省份"列，省份字段将留空")
+            debug_info.append("[提示] 原始数据无'省份'列，省份字段将留空")
 
         debug_info.append(f"[完成] 解析到 {len(df)} 条预警记录，实际列名 = {list(df.columns)}")
         debug_info.append("=" * 50)

@@ -16,7 +16,14 @@ import os
 
 # 确保可以导入 utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils.alarm_parser import get_latest_alarms
+
+# 安全导入 alarm_parser，失败时给出提示
+try:
+    from utils.alarm_parser import get_latest_alarms
+except ImportError as e:
+    st.error(f"无法导入预警数据解析模块：{e}")
+    st.info("请确认 web_app/main/utils/alarm_parser.py 文件存在。")
+    st.stop()
 
 
 # ==============================
@@ -31,7 +38,11 @@ st.title("🚨 全国气象预警实时监测")
 @st.cache_data(ttl=600)
 def _load_alarm_data():
     """加载最新预警数据，返回 (df, file_path, debug_info)。"""
-    return get_latest_alarms()
+    try:
+        return get_latest_alarms()
+    except Exception as e:
+        st.error(f"加载预警数据时出错：{type(e).__name__}: {e}")
+        return pd.DataFrame(), '', [f"[异常] {type(e).__name__}: {e}"]
 
 
 df, file_path, debug_info = _load_alarm_data()
