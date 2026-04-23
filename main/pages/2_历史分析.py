@@ -107,9 +107,6 @@ with st.spinner("正在从所有历史批次中加载数据..."):
 
 if df_all.empty:
     st.warning("暂无足够的历史数据用于分析。请确保已爬取至少一个批次的数据。")
-    with st.expander("🔧 调试信息"):
-        for line in debug:
-            st.text(line)
     st.stop()
 
 # 数据概览
@@ -120,9 +117,9 @@ st.markdown(
     f"**覆盖城市：** {df_all['city'].nunique()} 个"
 )
 
-with st.expander("🔧 调试信息"):
-    for line in debug:
-        st.text(line)
+# 显示最新记录时间
+latest_time = df_all['datetime'].max()
+st.success(f"✅ 已自动加载最新数据，最新记录时间：{latest_time}")
 
 
 # ==================== 一、时间趋势分析 ====================
@@ -384,6 +381,46 @@ fig_rank.update_layout(
 )
 
 st.plotly_chart(fig_rank, use_container_width=True)
+
+
+# ==================== 五、智能分析总结 ====================
+st.subheader("📋 基于最新数据的智能分析总结")
+
+# 趋势判断
+if len(daily_avg) >= 7:
+    first_week_val = daily_avg.head(7)['全国平均AQI'].mean()
+    last_week_val = daily_avg.tail(7)['全国平均AQI'].mean()
+    trend_desc = "下降" if last_week_val < first_week_val else "上升"
+    trend_icon = "✅" if trend_desc == "下降" else "⚠️"
+else:
+    trend_desc = "数据不足，无法判断趋势"
+    trend_icon = "📊"
+
+# 随机森林最重要因子
+top_pollutant = "暂未计算出"
+if 'importance_df' in dir() and len(importance_df) > 0:
+    top_pollutant = str(importance_df.iloc[-1]['特征'])
+
+# 相关性最强因子
+strongest_corr_factor = "暂未计算出"
+strongest_corr_val = 0.0
+corr_desc = ""
+if 'aqi_corr' in dir() and len(aqi_corr) > 0:
+    aqi_corr_abs = aqi_corr.abs().sort_values(ascending=False)
+    strongest_corr_factor = str(aqi_corr_abs.index[0])
+    strongest_corr_val = float(aqi_corr.loc[strongest_corr_factor])
+    corr_desc = "正相关" if strongest_corr_val > 0 else "负相关"
+
+summary = f"""
+> {trend_icon} **整体趋势**：近一周全国平均AQI较首周{trend_desc}了约 {abs(change_pct):.1f}%，空气质量呈{trend_desc}趋势。
+
+> 🌟 **核心驱动因素**：随机森林模型显示，**{top_pollutant}** 是当前影响AQI最重要的污染物，其重要性得分最高。
+
+> 🔗 **关键相关性**：在所有污染物中，**{strongest_corr_factor}** 与AQI的相关性最强（r = {strongest_corr_val:.3f}，呈{corr_desc}），提示该污染物是当前空气质量分化的主要贡献者。
+
+> 📌 **规划建议**：建议在源头管控上优先治理 **{top_pollutant}** 的排放，并结合气象条件优化监测布局。
+"""
+st.markdown(summary)
 
 
 # ==============================

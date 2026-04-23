@@ -417,58 +417,25 @@ for _, row in df_map.iterrows():
 
 folium.LayerControl().add_to(m)
 
-# 右下角 AQI 等级图例（通过 JS 动态注入到 Leaflet 地图容器内，确保紧贴地图右下角）
+# 右下角 AQI 等级图例（固定定位，始终可见）
 legend_html = '''
 {% macro html(this, kwargs) %}
-<div id="aqi-legend" style="
-    display:none;
-    position: absolute;
-    bottom: 12px;
-    right: 12px;
-    z-index: 1000;
-    background: rgba(255,255,255,0.95);
-    border: 2px solid #ccc;
-    border-radius: 10px;
-    padding: 10px 14px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-    font-size: 12px;
-    line-height: 1.9;
-    min-width: 155px;
-    pointer-events: auto;
-">
-    <div style="font-weight:700; margin-bottom:4px; color:#0a2540; text-align:center;">AQI 等级</div>
-    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00e400;border:1px solid #bbb;"></span><span>优 (0-50)</span></div>
-    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffff00;border:1px solid #bbb;"></span><span>良 (51-100)</span></div>
-    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff7e00;border:1px solid #bbb;"></span><span>轻度 (101-150)</span></div>
-    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff0000;border:1px solid #bbb;"></span><span>中度 (151-200)</span></div>
-    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#99004c;border:1px solid #bbb;"></span><span>重度 (201-300)</span></div>
-    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#7e0023;border:1px solid #bbb;"></span><span>严重 (&gt;300)</span></div>
+<div style="position: fixed;
+            bottom: 30px; right: 30px; width: 180px;
+            border: 2px solid #ccc; z-index: 9999; font-size: 14px;
+            background-color: white; opacity: 0.9; border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <div style="padding: 10px;">
+      <b>AQI 空气质量等级</b><br>
+      <i style="background:#00e400; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 优 (0-50)<br>
+      <i style="background:#ffff00; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 良 (51-100)<br>
+      <i style="background:#ff7e00; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 轻度污染 (101-150)<br>
+      <i style="background:#ff0000; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 中度污染 (151-200)<br>
+      <i style="background:#99004c; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 重度污染 (201-300)<br>
+      <i style="background:#7e0023; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 严重污染 (>300)
+  </div>
 </div>
-<script>
-(function(){
-    var legend = document.getElementById('aqi-legend');
-    if(!legend) return;
-    function injectLegend(){
-        var mapContainer = document.querySelector('.leaflet-container');
-        if(mapContainer){
-            var pos = getComputedStyle(mapContainer).position;
-            if(pos !== 'absolute' && pos !== 'relative' && pos !== 'fixed'){
-                mapContainer.style.position = 'relative';
-            }
-            if(legend.parentNode !== mapContainer){
-                mapContainer.appendChild(legend);
-            }
-            legend.style.display = 'block';
-        } else {
-            setTimeout(injectLegend, 100);
-        }
-    }
-    injectLegend();
-})();
-</script>
-{% endmacro %}
-'''
+{% endmacro %}'''
 legend = branca.element.MacroElement()
 legend._template = branca.element.Template(legend_html)
 m.get_root().add_child(legend)
