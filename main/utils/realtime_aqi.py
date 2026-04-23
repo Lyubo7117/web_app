@@ -298,13 +298,14 @@ def fetch_realtime_aqi(cache_ttl=600):
 
     Returns
     -------
-    tuple[DataFrame, str, list[str]]
-        (df, fetch_time, debug_info)
+    tuple[DataFrame, str, list[str], str]
+        (df, fetch_time, debug_info, data_source)
+        data_source: "中国天气网" | "Open-Meteo" | "无"
     """
     import streamlit as st
 
-    @st.cache_data(ttl=cache_ttl)
-    def _do_fetch():
+    @st.cache_data(ttl=cache_ttl, show_spinner=False)
+    def _do_fetch(_version="v2_dual_source"):  # 改版本号可强制刷新缓存
         debug = []
 
         # ── 尝试数据源1: 中国天气网 ──
