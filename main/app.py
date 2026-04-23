@@ -14,22 +14,21 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 自定义 CSS ====================
+# ==================== 自定义 CSS：完全控制卡片样式 ====================
 st.markdown("""
 <style>
-    /* 完全隐藏侧边栏 */
+    /* 隐藏侧边栏 */
     section[data-testid="stSidebar"] {
         display: none;
     }
 
-    /* 全局背景：天气图片 + 高斯模糊 */
+    /* 全局背景 + 高斯模糊 */
     .stApp {
         background-image: url("https://images.pexels.com/photos/531756/pexels-photo-531756.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
     }
-
     .stApp::before {
         content: "";
         position: fixed;
@@ -42,7 +41,7 @@ st.markdown("""
         z-index: -1;
     }
 
-    /* 主内容区域 */
+    /* 主内容区 */
     .main > div {
         background-color: rgba(255, 255, 255, 0.85);
         border-radius: 30px;
@@ -59,59 +58,57 @@ st.markdown("""
         text-align: center !important;
     }
 
-    /* 强制列等宽 */
-    div[data-testid="column"] {
-        flex: 1 1 0% !important;
-        min-width: 0;
+    /* 卡片网格容器 */
+    .card-grid {
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-start;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 20px;
+        margin: 30px 0;
     }
 
-    /* 卡片链接按钮样式：固定宽度、居中、填满 */
-    div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] a {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        width: 100%;
-        min-height: 120px;
+    /* 单个卡片 */
+    .card {
+        flex: 1 1 0px;
+        min-width: 180px;
         background: linear-gradient(145deg, #ffffff 0%, #eef6ff 100%);
         border-radius: 24px;
-        padding: 1.5rem 0.5rem;
+        padding: 24px 12px 16px 12px;
         text-decoration: none;
         color: #1a365d !important;
-        font-weight: 600;
-        font-size: 1.4rem;
         border: 1px solid #b8d4f0;
         box-shadow: 0 8px 16px rgba(0, 40, 80, 0.1);
         transition: all 0.3s ease;
-        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         text-align: center;
-        margin-bottom: 8px;
     }
 
-    div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] a:hover {
+    .card:hover {
         transform: translateY(-6px);
         box-shadow: 0 16px 24px rgba(27, 79, 140, 0.2);
         background: linear-gradient(145deg, #e6f0ff 0%, #d4e6ff 100%);
         border-color: #2b6cb0;
     }
 
-    /* 卡片描述文字：与按钮同宽、居中 */
-    .card-desc {
-        width: 100%;
-        font-size: 0.9rem;
-        color: #2d3748;
-        font-weight: 400;
-        text-align: center;
-        margin-top: 4px;
-        padding: 0 4px;
-        box-sizing: border-box;
+    /* 卡片标题 */
+    .card-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: #0a2540;
     }
 
-    /* 底部信息 */
+    /* 卡片描述 */
+    .card-desc {
+        font-size: 0.95rem;
+        color: #2d3748;
+        font-weight: 400;
+        line-height: 1.5;
+    }
+
+    /* 底部 */
     .footer {
         text-align: center;
         margin-top: 3rem;
@@ -138,27 +135,30 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("---")
-
-# ==================== 功能模块 ====================
 st.subheader("📌 功能模块")
 
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.page_link("pages/1_实时监测.py", label="📍 实时监测", help="查看最新AQI排名与全国热力图")
-    st.markdown("<div class='card-desc'>最新AQI排名 · 全国热力图 · 实时更新</div>", unsafe_allow_html=True)
-
-with col2:
-    st.page_link("pages/2_历史分析.py", label="📈 历史分析", help="十年趋势 · 相关性分析 · 驱动因素")
-    st.markdown("<div class='card-desc'>2015-2024趋势 · 相关性热力图 · 随机森林重要性</div>", unsafe_allow_html=True)
-
-with col3:
-    st.page_link("pages/3_一键分析.py", label="📊 今日快报", help="基于最新数据的空气质量快报")
-    st.markdown("<div class='card-desc'>平均AQI · 等级分布 · 首要污染物统计</div>", unsafe_allow_html=True)
-
-with col4:
-    st.page_link("pages/4_气象预警.py", label="🚨 气象预警", help="全国预警实时监测")
-    st.markdown("<div class='card-desc'>预警总数 · 等级分类 · 按省份筛选</div>", unsafe_allow_html=True)
+# ==================== 自定义 HTML 卡片（四张等宽） ====================
+# Streamlit 多页面路由：/页面文件名（不含扩展名）
+st.markdown("""
+<div class="card-grid">
+    <a class="card" href="/1_实时监测" target="_self">
+        <div class="card-title">📍 实时监测</div>
+        <div class="card-desc">最新AQI排名 · 全国热力图 · 实时更新</div>
+    </a>
+    <a class="card" href="/2_历史分析" target="_self">
+        <div class="card-title">📈 历史分析</div>
+        <div class="card-desc">2015-2024趋势 · 相关性热力图 · 随机森林重要性</div>
+    </a>
+    <a class="card" href="/3_一键分析" target="_self">
+        <div class="card-title">📊 今日快报</div>
+        <div class="card-desc">平均AQI · 等级分布 · 首要污染物统计</div>
+    </a>
+    <a class="card" href="/4_气象预警" target="_self">
+        <div class="card-title">🚨 气象预警</div>
+        <div class="card-desc">预警总数 · 等级分类 · 按省份筛选</div>
+    </a>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 st.markdown("""
