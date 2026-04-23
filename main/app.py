@@ -1,20 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 中国省会城市空气质量洞察 - Streamlit 主应用
-
-数据源：
-- 方式1：从 data_output/aqi/ 读取爬虫最新批次数据（默认）
-- 方式2：用户手动上传 Excel 文件
 """
 
 import streamlit as st
-import os
-import sys
-
-# ==================== 路径设置 ====================
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
 
 # ==================== 页面全局配置 ====================
 st.set_page_config(
@@ -23,121 +12,131 @@ st.set_page_config(
     layout="wide"
 )
 
-# ==================== 全局美化 CSS ====================
+# ==================== 自定义蓝色主题 CSS ====================
 st.markdown("""
 <style>
-    /* 整体背景渐变 */
+    /* 全局背景 */
     .stApp {
-        background: linear-gradient(135deg, #e6f0fa 0%, #b0d4f0 100%);
+        background: linear-gradient(135deg, #f0f8ff 0%, #e6f2ff 100%);
     }
-
-    /* 侧边栏背景 */
+    
+    /* 侧边栏 */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1e3a5f 0%, #0d2137 100%);
-        color: white;
+        background: linear-gradient(180deg, #1a365d 0%, #0f2440 100%);
     }
     section[data-testid="stSidebar"] * {
-        color: white !important;
+        color: #ffffff !important;
     }
     section[data-testid="stSidebar"] button {
-        background-color: #2a5a8c !important;
+        background: #2b6cb0 !important;
         color: white !important;
+        border-radius: 8px !important;
     }
-
-    /* 主内容卡片效果 */
-    div[data-testid="stMetric"], div[data-testid="stDataFrame"], div[data-testid="stTable"] {
-        background-color: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(5px);
-        border-radius: 12px;
-        padding: 15px;
-        box-shadow: 0 4px 12px rgba(0, 20, 40, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.5);
-    }
-
+    
     /* 标题样式 */
     h1, h2, h3 {
-        color: #0a1f33 !important;
+        color: #0a2540 !important;
         font-weight: 600 !important;
     }
-
-    /* 按钮样式 */
-    .stButton button {
-        background: linear-gradient(90deg, #1e5b9e, #0d3c6f);
-        color: white;
-        border: none;
-        border-radius: 20px;
-        padding: 8px 20px;
-        font-weight: 500;
-        transition: all 0.3s;
+    
+    /* 卡片容器 */
+    div[data-testid="stMetric"] {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0, 49, 102, 0.1);
+        border: 1px solid #cce0ff;
     }
-    .stButton button:hover {
-        background: linear-gradient(90deg, #2a7ac5, #15559a);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    
+    /* 数据表格 */
+    div[data-testid="stDataFrame"] {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #cce0ff;
     }
-
-    /* 表格表头 */
-    th {
-        background-color: #1e3a5f !important;
+    div[data-testid="stDataFrame"] th {
+        background: #1e4d8c !important;
         color: white !important;
         font-weight: 600 !important;
     }
-
+    div[data-testid="stDataFrame"] td {
+        background: white !important;
+    }
+    
+    /* 按钮 */
+    .stButton button {
+        background: linear-gradient(135deg, #2b6cb0 0%, #1a365d 100%);
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 8px 20px !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    .stButton button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(27, 79, 140, 0.3);
+    }
+    
     /* 信息提示框 */
     .stAlert {
-        background-color: rgba(30, 90, 150, 0.1);
-        border-left: 4px solid #1e5b9e;
+        border-radius: 10px;
+        border-left: 4px solid #2b6cb0;
+    }
+    
+    /* 欢迎卡片 */
+    .welcome-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f5faff 100%);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        border: 1px solid #cce0ff;
+        box-shadow: 0 4px 12px rgba(0, 49, 102, 0.08);
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================== 主界面 ====================
 st.title("🌏 中国省会城市空气质量实时监测与历史分析")
+
+# ==================== 欢迎区域 ====================
+st.markdown("""
+<div class="welcome-card">
+    <h2 style="margin-top: 0; color: #1a365d;">👋 欢迎使用空气质量洞察平台</h2>
+    <p style="font-size: 1.1rem; color: #2d3748; margin-bottom: 8px;">
+        实时监测全国31个省会及直辖市的空气质量，提供历史趋势分析与气象预警服务。
+    </p>
+    <p style="font-size: 0.95rem; color: #4a5568; margin-bottom: 0;">
+        👨‍💻 制作人：刘宇博 · 江毅 · 张睿 ｜ 大数据与人工智能导论课程项目
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
 st.markdown("---")
 
-# ==================== 侧边栏 ====================
+# ==================== 功能导航说明 ====================
+st.markdown("""
+### 📋 功能模块
+
+| 模块 | 说明 |
+|:---|:---|
+| **实时监测** | 查看各城市最新 AQI、首要污染物、空气质量等级，支持全国热力图 |
+| **历史分析** | 基于2015-2024年历史数据，分析空气质量演变趋势与规划驱动因素 |
+| **一键分析** | 基于最新爬取数据，生成今日空气质量快报（平均AQI、等级分布、污染物统计） |
+| **气象预警** | 全国气象预警实时监测，按等级分类展示，支持按省份筛选 |
+""")
+
+st.markdown("---")
+
+# ==================== 侧边栏 - 数据状态 ====================
 with st.sidebar:
     st.header("📊 数据状态")
+    st.info("等待成员A接入实时数据...")
+    # TODO: 接入实际数据后，可替换为：
+    # from utils.data_loader import load_latest_data
+    # df = load_latest_data()
+    # if not df.empty:
+    #     st.success(f"最近更新：{df['update_time'].max()}")
 
-    # --- 数据源选择 ---
-    st.markdown("**数据源**")
-    data_source = st.radio(
-        "选择数据来源",
-        options=["使用爬虫最新数据", "手动上传Excel文件"],
-        index=0,
-        key="data_source_select"
-    )
-
-    # --- 上传组件（仅在选择"手动上传"时显示） ---
-    if data_source == "手动上传Excel文件":
-        uploaded_file = st.file_uploader(
-            "请上传 AQI 数据 Excel 文件",
-            type=["xlsx", "xls"],
-            key="aqi_uploader"
-        )
-        if uploaded_file:
-            st.session_state['uploaded_file'] = uploaded_file
-            st.success(f"已加载文件：{uploaded_file.name}")
-        else:
-            st.session_state.pop('uploaded_file', None)
-    else:
-        st.session_state.pop('uploaded_file', None)
-        st.info("将从 data_output/aqi/ 读取最新批次数据")
-
-    # --- 分隔线 ---
     st.markdown("---")
-
-    # --- 数据状态信息 ---
-    if data_source == "使用爬虫最新数据":
-        # 检查数据目录是否存在
-        data_dir = os.path.normpath(os.path.join(current_dir, 'data_output', 'aqi'))
-        if os.path.exists(data_dir):
-            import glob
-            subdirs = glob.glob(os.path.join(data_dir, '*'))
-            batch_count = len([d for d in subdirs if os.path.isdir(d)])
-            if batch_count > 0:
-                st.success(f"已检测到 {batch_count} 个数据批次")
-            else:
-                st.warning("数据目录为空，请先运行爬虫")
-        else:
-            st.warning("数据目录不存在，请先运行爬虫创建数据")
+    st.caption("© 2026 刘宇博 · 江毅 · 张睿")
