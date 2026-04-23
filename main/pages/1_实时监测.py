@@ -50,107 +50,64 @@ with st.sidebar:
 # ==============================
 st.markdown("""
 <style>
+    /* 全局背景 */
     .stApp {
         background: linear-gradient(135deg, #f0f8ff 0%, #e6f2ff 100%);
     }
+    
+    /* 隐藏侧边栏 */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1a365d 0%, #0f2440 100%);
+        display: none;
     }
-    /* 隐藏原生侧边栏导航 */
-    [data-testid="stSidebarNav"] {
-        display: none !important;
-    }
-    section[data-testid="stSidebar"] * {
-        color: #ffffff !important;
-    }
-    section[data-testid="stSidebar"] button {
-        background: #2b6cb0 !important;
-        color: white !important;
-        border-radius: 8px !important;
-    }
+    
+    /* 标题样式 */
     h1, h2, h3 {
         color: #0a2540 !important;
         font-weight: 600 !important;
     }
-    div[data-testid="stMetric"] {
-        background: white;
-        border-radius: 12px;
-        padding: 16px;
-        box-shadow: 0 2px 8px rgba(0, 49, 102, 0.1);
-        border: 1px solid #cce0ff;
-    }
+    
+    /* 表格样式 */
     div[data-testid="stDataFrame"] {
         border-radius: 10px;
-        overflow: hidden;
         border: 1px solid #cce0ff;
     }
     div[data-testid="stDataFrame"] th {
         background: #1e4d8c !important;
         color: white !important;
-        font-weight: 600 !important;
     }
-    div[data-testid="stDataFrame"] td {
-        background: white !important;
-    }
+    
+    /* 按钮样式 */
     .stButton button {
         background: linear-gradient(135deg, #2b6cb0 0%, #1a365d 100%);
         color: white !important;
         border: none !important;
         border-radius: 8px !important;
-        padding: 8px 20px !important;
-        font-weight: 600 !important;
-        transition: all 0.3s ease !important;
     }
-    .stButton button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(27, 79, 140, 0.3);
+    
+    /* ========== 关键修复：消除地图下方空白 ========== */
+    /* 强制 map 容器内的 iframe 高度自适应 */
+    .element-container:has(iframe) {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
     }
-    .stAlert {
-        border-radius: 10px;
-        border-left: 4px solid #2b6cb0;
-    }
-    /* 表格和文字居中 */
-    div[data-testid="stMetric"] { text-align: center; }
-    div[data-testid="stDataFrame"] { margin-left: auto; margin-right: auto; }
-    div[data-testid="stDataFrame"] td,
-    div[data-testid="stDataFrame"] th {
-        text-align: center !important;
-    }
-    .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
-        text-align: center;
-    }
-    h1, h2, h3, h4 { text-align: center !important; }
-    p, .stMarkdown p { text-align: center; }
-
-    /* 图例浮动层样式 */
-    .aqi-legend-float {
-        position: fixed !important;
-        bottom: 100px !important;   /* 上移到可见区域 */
-        right: 28px !important;
-        width: 195px;
-        border: 2px solid #1a365d;
-        z-index: 99999 !important;
-        font-size: 13px;
-        background-color: rgba(255,255,255,0.94);
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        padding: 12px 14px;
-        line-height: 1.9;
-    }
-    /* 地图容器样式（由下方内联CSS统一控制） */
-    .aqi-legend-float b {
+    
+    /* iframe 本身去除多余高度 */
+    iframe {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
         display: block;
-        margin-bottom: 4px;
-        color: #1a365d;
-        font-size: 14px;
     }
-    .aqi-legend-float .lg-item i {
-        display: inline-block;
-        width: 20px; height: 14px;
-        border-radius: 3px;
-        margin-right: 6px;
-        vertical-align: middle;
-        border: 1px solid rgba(0,0,0,0.15);
+    
+    /* stFoliumMap 容器紧贴内容 */
+    .stFoliumMap {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+        overflow: hidden;
+    }
+    
+    /* 地图容器所在的行不留空隙 */
+    .stHorizontalBlock + .stMarkdown {
+        margin-top: 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -385,33 +342,8 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
 if all_locs:
     m.fit_bounds(all_locs, padding=(30, 30))
 
-# 去除地图容器的CSS（只在这个页面生效）
-st.markdown("""
-<style>
-    /* 去掉主内容区的白色背景和圆角 */
-    .main > div {
-        background: none !important;
-        border-radius: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        box-shadow: none !important;
-    }
-    /* 去掉folium地图容器的多余边距 */
-    .stFoliumMap {
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    /* 去掉iframe周围的所有边距 */
-    iframe {
-        margin: 0 !important;
-        padding: 0 !important;
-        display: block;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# 地图直接渲染，无容器包裹
-st_folium(m, use_container_width=True, height=550)
+# 地图渲染 — 高度稍微降低，配合CSS不留白
+st_folium(m, use_container_width=True, height=480)
 
 st.markdown("---")
 st.caption("👨‍💻 制作人：刘宇博 · 江毅 · 张睿 ｜ 大数据与人工智能导论课程项目")
