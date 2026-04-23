@@ -432,7 +432,7 @@ for _, row in df_map.iterrows():
     ).add_to(m)
 
 folium.LayerControl().add_to(m)
-st_folium(m, use_container_width=True, height=480)
+st_folium(m, use_container_width=True, height=380)
 
 # ==============================
 # 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
