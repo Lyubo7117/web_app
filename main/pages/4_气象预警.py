@@ -51,7 +51,8 @@ df, file_path, debug_info = _load_alarm_data()
 # ==============================
 # 调试信息面板（可折叠）
 # ==============================
-with st.expander("🔍 调试信息（排查用）", expanded=False):
+# 调试信息（默认隐藏，需要时可展开）
+with st.expander("🔧 调试信息", expanded=False):
     for line in debug_info:
         st.text(line)
 
