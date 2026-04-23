@@ -137,24 +137,15 @@ st.markdown("""
         padding: 12px 14px;
         line-height: 1.9;
     }
-    /* 地图容器：固定高度，消除右侧和下方多余留白 */
+    /* 地图容器：消除多余留白 */
     div[data-testid="stFolium"] {
         padding: 0 !important;
         margin: 0 !important;
-        max-height: 560px;
-        overflow: hidden;
         background: transparent !important;
     }
-    /* 地图 iframe 紧贴容器 */
     div[data-testid="stFolium"] > iframe {
         display: block;
-        margin: 0 auto;
         border-radius: 8px;
-    }
-    /* 地图区块下方不留空白 */
-    div[data-testid="stFolium"].css-ocdqkq {
-        padding-bottom: 0 !important;
-        margin-bottom: 0 !important;
     }
     .aqi-legend-float b {
         display: block;
@@ -370,7 +361,7 @@ if df_map.empty:
     st.stop()
 
 # [修5] tiles=None 后用 TileLayer 添加高德底图（不能直接传 URL 给 tiles 参数）
-m = folium.Map(location=[35, 105], zoom_start=4, tiles=None, control_scale=True)
+m = folium.Map(location=[38, 108], zoom_start=4, tiles=None, control_scale=True)
 
 amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
 folium.TileLayer(
@@ -442,7 +433,28 @@ for _, row in df_map.iterrows():
     ).add_to(m)
 
 folium.LayerControl().add_to(m)
-st_folium(m, use_container_width=True, height=550)
+
+# 自动缩放：让地图紧贴所有城市标记
+all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
+            if pd.notna(row.get('lat')) and pd.notna(row.get('lon'))
+            and float(row.get('lat', 0)) != 0 and float(row.get('lon', 0)) != 0]
+if all_locs:
+    m.fit_bounds(all_locs, padding=(40, 40))
+
+# 注入CSS：裁剪folium地图内部的底部空白（红框区域）
+from branca.element import MacroElement, Template
+_clip_css = """
+{% macro html(this, kwargs) %}
+<style>
+.leaflet-container { height: 100% !important; }
+</style>
+{% endmacro %}
+"""
+clip_elem = MacroElement()
+clip_elem._template = Template(_clip_css)
+m.get_root().html.add_child(clip_elem)
+
+st_folium(m, use_container_width=True, height=450)
 
 # ==============================
 # 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
