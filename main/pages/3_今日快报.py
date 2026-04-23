@@ -106,6 +106,29 @@ st.markdown("""
         border-radius: 10px;
         border-left: 4px solid #2b6cb0;
     }
+    /* 表格和文字居中 */
+    div[data-testid="stMetric"] {
+        text-align: center;
+    }
+    div[data-testid="stMetric"] label {
+        text-align: center;
+    }
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        text-align: center;
+    }
+    div[data-testid="stDataFrame"] {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
+        text-align: center;
+    }
+    h1, h2, h3, h4 {
+        text-align: center !important;
+    }
+    p, .stMarkdown p {
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -286,7 +309,7 @@ st.markdown("---")
 st.subheader("🏭 首要污染物统计")
 
 pollutant_col = None
-for col_name in ['primary_pollutant', 'pollutant', '首要污染物']:
+for col_name in ['dominant_pollutant', 'primary_pollutant', 'pollutant', '首要污染物']:
     if col_name in df_valid.columns:
         pollutant_col = col_name
         break
@@ -341,8 +364,10 @@ left_col, right_col = st.columns(2)
 with left_col:
     st.markdown("#### 🟢 空气最佳 Top 5")
     best5 = df_valid.nsmallest(5, 'aqi')
-    best5_display = best5[['city_name', 'aqi', 'level']].copy()
-    best5_display.columns = ['城市', 'AQI', '等级']
+    display_cols = [c for c in ['city_name', 'aqi', 'level', 'dominant_pollutant'] if c in best5.columns]
+    col_labels = ['城市', 'AQI', '等级', '首要污染物'][:len(display_cols)]
+    best5_display = best5[display_cols].copy()
+    best5_display.columns = col_labels
     best5_display.reset_index(drop=True, inplace=True)
     best5_display.index += 1
     st.dataframe(best5_display, use_container_width=True, height=240)
@@ -350,8 +375,10 @@ with left_col:
 with right_col:
     st.markdown("#### 🔴 空气最差 Top 5")
     worst5 = df_valid.nlargest(5, 'aqi')
-    worst5_display = worst5[['city_name', 'aqi', 'level']].copy()
-    worst5_display.columns = ['城市', 'AQI', '等级']
+    display_cols = [c for c in ['city_name', 'aqi', 'level', 'dominant_pollutant'] if c in worst5.columns]
+    col_labels = ['城市', 'AQI', '等级', '首要污染物'][:len(display_cols)]
+    worst5_display = worst5[display_cols].copy()
+    worst5_display.columns = col_labels
     worst5_display.reset_index(drop=True, inplace=True)
     worst5_display.index += 1
     st.dataframe(worst5_display, use_container_width=True, height=240)

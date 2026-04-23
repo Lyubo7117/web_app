@@ -104,6 +104,29 @@ st.markdown("""
         border-radius: 10px;
         border-left: 4px solid #2b6cb0;
     }
+    /* 表格和文字居中 */
+    div[data-testid="stMetric"] {
+        text-align: center;
+    }
+    div[data-testid="stMetric"] label {
+        text-align: center;
+    }
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        text-align: center;
+    }
+    div[data-testid="stDataFrame"] {
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
+        text-align: center;
+    }
+    h1, h2, h3, h4 {
+        text-align: center !important;
+    }
+    p, .stMarkdown p {
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -214,9 +237,10 @@ left_col, right_col = st.columns(2)
 with left_col:
     st.markdown("#### 🟢 空气最佳 Top 10")
     best = df_sorted.tail(10).iloc[::-1]
-    display_cols = [c for c in ['city_name', 'aqi', 'level'] if c in best.columns]
+    display_cols = [c for c in ['city_name', 'aqi', 'level', 'dominant_pollutant'] if c in best.columns]
+    col_labels = ['城市', 'AQI', '等级', '首要污染物'][:len(display_cols)]
     best_display = best[display_cols].copy()
-    best_display.columns = ['城市', 'AQI', '等级'][:len(display_cols)]
+    best_display.columns = col_labels
     best_display.reset_index(drop=True, inplace=True)
     best_display.index += 1
     st.dataframe(best_display, use_container_width=True, height=360)
@@ -224,9 +248,10 @@ with left_col:
 with right_col:
     st.markdown("#### 🔴 空气最差 Top 10")
     worst = df_sorted.head(10)
-    display_cols = [c for c in ['city_name', 'aqi', 'level'] if c in worst.columns]
+    display_cols = [c for c in ['city_name', 'aqi', 'level', 'dominant_pollutant'] if c in worst.columns]
+    col_labels = ['城市', 'AQI', '等级', '首要污染物'][:len(display_cols)]
     worst_display = worst[display_cols].copy()
-    worst_display.columns = ['城市', 'AQI', '等级'][:len(display_cols)]
+    worst_display.columns = col_labels
     worst_display.reset_index(drop=True, inplace=True)
     worst_display.index += 1
     st.dataframe(worst_display, use_container_width=True, height=360)
@@ -244,7 +269,30 @@ if df_map.empty:
     st.warning("暂无有效的AQI数据，无法生成热力图")
     st.stop()
 
-m = folium.Map(location=[35, 110], zoom_start=4, tiles='CartoDB positron')
+m = folium.Map(location=[35, 110], zoom_start=4, tiles=None, control_scale=True)
+
+# 中文地图瓦片（高德地图）
+amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
+folium.TileLayer(
+    tiles=amap_url,
+    attr='&copy; 高德地图',
+    name='高德地图',
+    subdomains='1234',
+    max_zoom=18,
+    overlay=False,
+    control=True,
+).add_to(m)
+
+# 备用：CartoDB 底图（海外 fallback）
+cartodb_url = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+folium.TileLayer(
+    tiles=cartodb_url,
+    attr='&copy; CartoDB',
+    name='CartoDB',
+    max_zoom=18,
+    overlay=False,
+    control=True,
+).add_to(m)
 
 for _, row in df_map.iterrows():
     try:
@@ -279,6 +327,8 @@ for _, row in df_map.iterrows():
         ),
         tooltip=f"{city}: AQI {int(aqi_val)}",
     ).add_to(m)
+
+folium.LayerControl().add_to(m)
 
 st_folium(m, width=1100, height=550)
 

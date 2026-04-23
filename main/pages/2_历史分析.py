@@ -69,6 +69,19 @@ st.markdown("""
         border-radius: 10px;
         border-left: 4px solid #2b6cb0;
     }
+    /* 表格和文字居中 */
+    div[data-testid="stMetric"] {
+        text-align: center;
+    }
+    .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
+        text-align: center;
+    }
+    h1, h2, h3, h4 {
+        text-align: center !important;
+    }
+    p, .stMarkdown p {
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
