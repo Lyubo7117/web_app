@@ -391,7 +391,7 @@ for _, row in df_map.iterrows():
     ).add_to(m)
 
 # 不使用 fit_bounds，让地图自然填满容器（避免底部空白）
-st_folium(m, use_container_width=True, height=550)
+st_folium(m, use_container_width=True, height=450)
 
 # ==============================
 # 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
