@@ -23,6 +23,7 @@ import sys
 # 添加 utils 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.excel_parser import get_all_historical_data
+from utils.realtime_aqi import fetch_realtime_aqi
 
 
 # ==============================
@@ -110,6 +111,50 @@ with st.spinner("正在从所有历史批次中加载数据..."):
 if df_all.empty:
     st.warning("暂无足够的历史数据用于分析。请确保已爬取至少一个批次的数据。")
     st.stop()
+
+# ── 叠加实时 API 数据，补全至今日 ──
+with st.spinner("正在获取实时数据，补全最新时段..."):
+    df_rt, rt_time, _, rt_source = fetch_realtime_aqi(cache_ttl=300)
+
+if not df_rt.empty:
+    # 将实时数据转换为与历史数据一致的列名格式
+    rt_records = []
+    for _, row in df_rt.iterrows():
+        city_name = row.get('city_name', '')
+        if not city_name or pd.isna(row.get('aqi')):
+            continue
+        rec = {
+            'city': city_name,
+            'datetime': row.get('datetime', ''),
+            'aqi': row.get('aqi'),
+            'level': row.get('level', ''),
+            'primary_pollutant': row.get('dominant_pollutant', ''),
+            'pm25': row.get('pm25'),
+            'pm10': row.get('pm10'),
+            'co': row.get('co'),
+            'no2': row.get('no2'),
+            'o3': row.get('o3'),
+            'so2': row.get('so2'),
+        }
+        rt_records.append(rec)
+
+    if rt_records:
+        df_realtime = pd.DataFrame(rt_records)
+        # 数值列转换
+        numeric_cols = ['aqi', 'pm25', 'pm10', 'co', 'no2', 'o3', 'so2']
+        for col in numeric_cols:
+            if col in df_realtime.columns:
+                df_realtime[col] = pd.to_numeric(df_realtime[col], errors='coerce')
+
+        # 合并：历史 + 实时（实时数据会覆盖同城市同时刻的旧记录）
+        df_all = pd.concat([df_all, df_realtime], ignore_index=True)
+        # 去重：同一城市同一时刻保留最后出现的记录（即实时数据优先）
+        df_all = df_all.drop_duplicates(subset=['city', 'datetime'], keep='last')
+        # 按城市和时间排序
+        df_all = df_all.sort_values(['city', 'datetime']).reset_index(drop=True)
+        st.info(f"📡 已叠加 **{rt_source}** 实时数据（{len(df_realtime)} 条），补全至当前时刻")
+else:
+    st.warning("⚠️ 实时数据源暂不可用，当前仅展示爬虫批次数据")
 
 # 数据概览
 st.markdown(

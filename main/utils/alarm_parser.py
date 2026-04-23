@@ -34,6 +34,45 @@ _COLUMN_MAP = {
     '解除日期': 'cancel_time',
 }
 
+# 34 个省会/直辖市/特别行政区城市名列表（用于从预警标题中正则提取）
+_CAPITAL_CITIES = [
+    '北京', '天津', '石家庄', '太原', '呼和浩特', '沈阳', '长春', '哈尔滨',
+    '上海', '南京', '杭州', '合肥', '福州', '南昌', '济南',
+    '郑州', '武汉', '长沙', '广州', '南宁', '海口',
+    '重庆', '成都', '贵阳', '昆明', '拉萨',
+    '西安', '兰州', '西宁', '银川', '乌鲁木齐',
+    '香港', '澳门', '台北'
+]
+
+
+def _extract_city_from_title(row, required_cols):
+    """
+    当城市列为空时，尝试从预警标题/内容中正则提取城市名。
+    返回提取到的城市名字符串，或 None（提取失败）。
+    """
+    # 拼接所有可用的文本字段作为匹配源
+    text_parts = []
+    for col in required_cols:
+        val = row.get(col, '')
+        if pd.notna(val) and str(val).strip():
+            text_parts.append(str(val).strip())
+    # 也检查原始 DataFrame 的其他非标准列
+    for col in row.index:
+        if col not in required_cols:
+            val = row.get(col, '')
+            if pd.notna(val) and str(val).strip() and len(str(val)) > 3:
+                text_parts.append(str(val).strip())
+
+    full_text = ''.join(text_parts)
+
+    # 按城市名长度降序排列，优先匹配长的（如"呼和浩特"先于"呼和"）
+    sorted_cities = sorted(_CAPITAL_CITIES, key=len, reverse=True)
+    for city in sorted_cities:
+        if city in full_text:
+            return city
+
+    return None
+
 
 def get_latest_alarms(data_folder=None):
     """
@@ -138,16 +177,24 @@ def get_latest_alarms(data_folder=None):
             # 删除省份、城市均为空的行
             df_out = df_out.dropna(subset=['省份', '城市'], how='all')
 
-            # 填充空白城市名：用省份名 + "（省级预警）" 替代
+            # 填充空白城市名：优先从预警标题提取，其次用省份名
             if '城市' in df_out.columns:
-                df_out['城市'] = df_out.apply(
-                    lambda row: row['城市'] if pd.notna(row['城市']) and str(row['城市']).strip() != ''
-                    else f"{row['省份']}（省级预警）" if pd.notna(row['省份']) and str(row['省份']).strip() != ''
-                    else "未知地区",
-                    axis=1
-                )
+                def _fill_city(row):
+                    raw = row['城市']
+                    if pd.notna(raw) and str(raw).strip() != '':
+                        return str(raw).strip()
+                    # 尝试从标题/内容中提取
+                    extracted = _extract_city_from_title(row, required)
+                    if extracted:
+                        return extracted
+                    # fallback：省级
+                    if pd.notna(row.get('省份')) and str(row['省份']).strip() != '':
+                        return f"{row['省份']}（省级预警）"
+                    return "未知地区"
+
+                df_out['城市'] = df_out.apply(_fill_city, axis=1)
                 filled_count = ((df_out['城市'].str.contains('省级预警')) | (df_out['城市'] == '未知地区')).sum()
-                debug.append(f"[修复] 已填充 {filled_count} 个空白城市名")
+                debug.append(f"[修复] 已填充 {filled_count} 个空白城市名（含标题提取）")
 
             debug.append(f"[完成] 解析到 {len(df_out)} 条有效预警记录")
             return df_out, latest_file, debug
@@ -159,14 +206,20 @@ def get_latest_alarms(data_folder=None):
                 df_out.columns = required
                 df_out = df_out.dropna(subset=['省份', '城市'], how='all')
 
-                # 填充空白城市名（备用路径同样需要）
+                # 填充空白城市名（备用路径同样需要标题提取）
                 if '城市' in df_out.columns:
-                    df_out['城市'] = df_out.apply(
-                        lambda row: row['城市'] if pd.notna(row['城市']) and str(row['城市']).strip() != ''
-                        else f"{row['省份']}（省级预警）" if pd.notna(row['省份']) and str(row['省份']).strip() != ''
-                        else "未知地区",
-                        axis=1
-                    )
+                    def _fill_city_fb(row):
+                        raw = row['城市']
+                        if pd.notna(raw) and str(raw).strip() != '':
+                            return str(raw).strip()
+                        extracted = _extract_city_from_title(row, required)
+                        if extracted:
+                            return extracted
+                        if pd.notna(row.get('省份')) and str(row['省份']).strip() != '':
+                            return f"{row['省份']}（省级预警）"
+                        return "未知地区"
+
+                    df_out['城市'] = df_out.apply(_fill_city_fb, axis=1)
 
                 debug.append(f"[完成] 按位置提取到 {len(df_out)} 条记录")
                 return df_out, latest_file, debug

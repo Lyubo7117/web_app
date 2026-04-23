@@ -12,7 +12,6 @@ Streamlit 多页面应用 - 实时监测页面
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-import branca
 import pandas as pd
 import sys
 import os
@@ -417,31 +416,50 @@ for _, row in df_map.iterrows():
 
 folium.LayerControl().add_to(m)
 
-# 右下角 AQI 等级图例（固定定位，强制可见）
-legend_html = '''
-{% macro html(this, kwargs) %}
-<div style="position: fixed;
-            bottom: 80px; right: 18px; width: 195px;
-            border: 2px solid #1a365d; z-index: 99999 !important; font-size: 13px;
-            background-color: white; opacity: 0.92; border-radius: 10px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
-  <div style="padding: 10px;">
-      <b>空气质量等级 (AQI)</b><br>
-      <i style="background:#A8E05F; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 优 (0-50)<br>
-      <i style="background:#FDD74B; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 良 (51-100)<br>
-      <i style="background:#FE9B57; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 轻度污染 (101-150)<br>
-      <i style="background:#FE6A69; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 中度污染 (151-200)<br>
-      <i style="background:#A97ABC; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 重度污染 (201-300)<br>
-      <i style="background:#A87383; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 严重污染 (>300)
-  </div>
-</div>
-{% endmacro %}
-'''
-legend = branca.element.MacroElement()
-legend._template = branca.element.Template(legend_html)
-m.get_root().add_child(legend)
-
 st_folium(m, width=1100, height=550)
+
+# 右下角 AQI 等级图例 — 用独立 st.markdown 注入，确保在底图右下角可见
+st.markdown("""
+<style>
+.aqi-legend-float {
+    position: fixed;
+    bottom: 100px !important;
+    right: 28px !important;
+    width: 195px;
+    border: 2px solid #1a365d;
+    z-index: 99999 !important;
+    font-size: 13px;
+    background-color: rgba(255,255,255,0.94);
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: 12px 14px;
+    line-height: 1.9;
+}
+.aqi-legend-float b {
+    display: block;
+    margin-bottom: 4px;
+    color: #1a365d;
+    font-size: 14px;
+}
+.aqi-legend-float .lg-item i {
+    display: inline-block;
+    width: 20px; height: 14px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: middle;
+    border: 1px solid rgba(0,0,0,0.15);
+}
+</style>
+<div class="aqi-legend-float">
+<b>📊 空气质量等级 (AQI)</b>
+<div class="lg-item"><i style="background:#00e400;"></i> 优 (0–50)</div>
+<div class="lg-item"><i style="background:#ffff00;"></i> 良 (51–100)</div>
+<div class="lg-item"><i style="background:#ff7e00;"></i> 轻度污染 (101–150)</div>
+<div class="lg-item"><i style="background:#ff0000;"></i> 中度污染 (151–200)</div>
+<div class="lg-item"><i style="background:#99004c;"></i> 重度污染 (201–300)</div>
+<div class="lg-item"><i style="background:#7e0023;"></i> 严重污染 (>300)</div>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ==============================
