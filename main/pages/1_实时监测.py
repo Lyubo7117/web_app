@@ -147,6 +147,11 @@ st.markdown("""
         display: block;
         border-radius: 8px;
     }
+    /* 强制 leaflet 地图填满 iframe，消除内部底部空白 */
+    .leaflet-container {
+        min-height: 100% !important;
+        height: auto !important;
+    }
     .aqi-legend-float b {
         display: block;
         margin-bottom: 4px;
@@ -306,6 +311,12 @@ with right_col:
 # ==============================
 @st.cache_data(ttl=86400, show_spinner=False)
 def _load_china_boundary():
+    # 优先读本地文件（避免海外服务器请求阿里云超时）
+    local_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'china_boundary.json')
+    if os.path.exists(local_path):
+        with open(local_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    # 本地不存在才请求远程
     url = 'https://geo.datav.aliyun.com/areas_v3/bound/100000.json'
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     resp = urllib.request.urlopen(req, timeout=15)
@@ -326,22 +337,15 @@ if df_map.empty:
     st.stop()
 
 # [修5] tiles=None 后用 TileLayer 添加高德底图（不能直接传 URL 给 tiles 参数）
-m = folium.Map(location=[38, 108], zoom_start=4, tiles=None, control_scale=True)
+m = folium.Map(location=[38, 108], zoom_start=4, tiles=None)
 
 amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
 folium.TileLayer(
-    tiles=amap_url, attr='&copy; 高德地图', name='高德地图（中文）',
+    tiles=amap_url, attr='&copy; 高德地图', name='高德地图',
     subdomains='1234', max_zoom=18, overlay=False, control=True, show=True
 ).add_to(m)
 
-# 备用底图 CartoDB
-cartodb_url = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}{y}{r}.png'
-folium.TileLayer(
-    tiles=cartodb_url, attr='&copy; CartoDB', name='CartoDB（英文）',
-    max_zoom=18, overlay=False, control=True, show=False
-).add_to(m)
-
-# 中国国界线
+# 中国国界线（优先本地文件，避免每次请求阿里云）
 try:
     boundary_data = _load_china_boundary()
     folium.GeoJson(
@@ -385,7 +389,10 @@ for _, row in df_map.iterrows():
         tooltip=f"{city}: AQI {int(aqi_val)}",
     ).add_to(m)
 
-folium.LayerControl().add_to(m)
+# 只有一个底图，不需要图层控制器
+# folium.LayerControl().add_to(m)
+
+
 
 # 自动缩放：让地图紧贴所有城市标记
 all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
@@ -394,7 +401,7 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
 if all_locs:
     m.fit_bounds(all_locs, padding=(40, 40))
 
-st_folium(m, use_container_width=True, height=450)
+st_folium(m, use_container_width=True, height=380)
 
 # ==============================
 # 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
