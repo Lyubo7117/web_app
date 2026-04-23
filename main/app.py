@@ -59,60 +59,66 @@ st.markdown("""
         text-align: center !important;
     }
 
-    /* ---- 强制列等宽 + 内容居中 ---- */
-    div[data-testid="column"] {
-        flex: 1 1 0% !important;
-        min-width: 0 !important;
+    /* ---- 隐藏 st.page_link 和描述的原始渲染 ---- */
+    [data-testid="stPageLink"],
+    .card-desc {
+        display: none !important;
+    }
+
+    /* ---- 纯 HTML 卡片网格 ---- */
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin: 20px 0 10px 0;
+    }
+    @media (max-width: 768px) {
+        .card-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+        .card-grid { grid-template-columns: 1fr; }
+    }
+
+    .nav-card {
         display: flex;
         flex-direction: column;
+        justify-content: center;
         align-items: center;
-        justify-content: flex-start;
-    }
-
-    /* ---- 覆盖 st.page_link 默认样式 → 毛玻璃卡片 ---- */
-    [data-testid="stPageLink"] {
-        width: 100% !important;
-        margin: 0 !important;
-    }
-    [data-testid="stPageLink"] > a {
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        width: 100% !important;
-        min-height: 100px;
-        padding: 20px 8px !important;
-        background: rgba(255, 255, 255, 0.6) !important;
+        min-height: 140px;
+        padding: 24px 16px;
+        background: rgba(255, 255, 255, 0.6);
         backdrop-filter: blur(4px);
-        border-radius: 24px !important;
-        border: 1px solid rgba(255, 255, 255, 0.8) !important;
-        box-shadow: 0 8px 16px rgba(0, 40, 80, 0.1) !important;
-        text-decoration: none !important;
-        color: #1a365d !important;
-        font-weight: 700 !important;
-        font-size: 1.4rem !important;
-        text-align: center !important;
-        transition: all 0.3s ease !important;
-        box-sizing: border-box !important;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 8px 16px rgba(0, 40, 80, 0.1);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: #1a365d;
+        box-sizing: border-box;
     }
-    [data-testid="stPageLink"] > a:hover {
+    .nav-card:hover {
         transform: translateY(-6px);
-        box-shadow: 0 16px 24px rgba(27, 79, 140, 0.2) !important;
-        background: rgba(255, 255, 255, 0.8) !important;
-        border-color: #ffffff !important;
-        text-decoration: none !important;
+        box-shadow: 0 16px 24px rgba(27, 79, 140, 0.2);
+        background: rgba(255, 255, 255, 0.8);
+        border-color: #ffffff;
     }
-
-    /* 卡片描述文字 */
-    .card-desc {
-        width: 100%;
-        font-size: 0.9rem;
-        color: #2d3748;
+    .nav-card .card-icon {
+        font-size: 2.4rem;
+        margin-bottom: 10px;
+    }
+    .nav-card .card-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #0a2540;
+        margin-bottom: 8px;
+    }
+    .nav-card .card-desc-text {
+        font-size: 0.85rem;
+        color: #4a5568;
         font-weight: 400;
         text-align: center;
-        margin-top: 4px;
-        padding: 0 4px;
-        box-sizing: border-box;
+        line-height: 1.5;
     }
 
     /* 底部 */
@@ -123,6 +129,30 @@ st.markdown("""
         font-weight: 500;
     }
 </style>
+
+<!-- 功能卡片：纯 HTML 展示，JS 绑定点击跳转到 st.page_link -->
+<div class="card-grid">
+    <div class="nav-card" data-page="实时监测">
+        <span class="card-icon">📍</span>
+        <span class="card-title">实时监测</span>
+        <span class="card-desc-text">最新AQI排名<br>全国热力图 · 实时更新</span>
+    </div>
+    <div class="nav-card" data-page="历史分析">
+        <span class="card-icon">📈</span>
+        <span class="card-title">历史分析</span>
+        <span class="card-desc-text">2015-2024趋势<br>相关性热力图 · 驱动因素</span>
+    </div>
+    <div class="nav-card" data-page="今日快报">
+        <span class="card-icon">📊</span>
+        <span class="card-title">今日快报</span>
+        <span class="card-desc-text">平均AQI · 等级分布<br>首要污染物统计</span>
+    </div>
+    <div class="nav-card" data-page="气象预警">
+        <span class="card-icon">🚨</span>
+        <span class="card-title">气象预警</span>
+        <span class="card-desc-text">预警总数 · 等级分类<br>按省份筛选</span>
+    </div>
+</div>
 """, unsafe_allow_html=True)
 
 # ==================== 主界面 ====================
@@ -144,24 +174,40 @@ st.markdown("""
 st.markdown("---")
 st.subheader("📌 功能模块")
 
-# ==================== 功能卡片（st.page_link 保证路由正确，CSS 覆盖样式） ====================
+# ==================== 功能卡片 ====================
+# 纯 HTML 卡片负责视觉展示，点击时通过 DOM 查找对应的 st.page_link 链接触发跳转
 col1, col2, col3, col4 = st.columns(4)
-
 with col1:
-    st.page_link("pages/1_实时监测.py", label="📍 实时监测", help="查看最新AQI排名与全国热力图")
-    st.markdown('<div class="card-desc">最新AQI排名 · 全国热力图 · 实时更新</div>', unsafe_allow_html=True)
-
+    st.page_link("pages/1_实时监测.py", label="", icon="")
 with col2:
-    st.page_link("pages/2_历史分析.py", label="📈 历史分析", help="十年趋势 · 相关性分析 · 驱动因素")
-    st.markdown('<div class="card-desc">2015-2024趋势 · 相关性热力图 · 随机森林重要性</div>', unsafe_allow_html=True)
-
+    st.page_link("pages/2_历史分析.py", label="", icon="")
 with col3:
-    st.page_link("pages/3_一键分析.py", label="📊 今日快报", help="基于最新数据的空气质量快报")
-    st.markdown('<div class="card-desc">平均AQI · 等级分布 · 首要污染物统计</div>', unsafe_allow_html=True)
-
+    st.page_link("pages/3_一键分析.py", label="", icon="")
 with col4:
-    st.page_link("pages/4_气象预警.py", label="🚨 气象预警", help="全国预警实时监测")
-    st.markdown('<div class="card-desc">预警总数 · 等级分类 · 按省份筛选</div>', unsafe_allow_html=True)
+    st.page_link("pages/4_气象预警.py", label="", icon="")
+
+st.markdown("""
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取所有隐藏的 st.page_link 链接
+    var pageLinks = document.querySelectorAll('[data-testid="stPageLink"] a');
+    var cardTargets = document.querySelectorAll('.nav-card');
+
+    // 构建映射：根据 st.page_link 的 href 匹配卡片
+    var pages = ['实时监测', '历史分析', '今日快报', '气象预警'];
+    cardTargets.forEach(function(card, idx) {
+        card.addEventListener('click', function() {
+            // 遍历 page_link 找到对应链接
+            pageLinks.forEach(function(link) {
+                if (link.getAttribute('href') && link.getAttribute('href').indexOf(pages[idx]) !== -1) {
+                    link.click();
+                }
+            });
+        });
+    });
+});
+</script>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 st.markdown("""
