@@ -441,19 +441,6 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
 if all_locs:
     m.fit_bounds(all_locs, padding=(40, 40))
 
-# 注入CSS：裁剪folium地图内部的底部空白（红框区域）
-from branca.element import MacroElement, Template
-_clip_css = """
-{% macro html(this, kwargs) %}
-<style>
-.leaflet-container { height: 100% !important; }
-</style>
-{% endmacro %}
-"""
-clip_elem = MacroElement()
-clip_elem._template = Template(_clip_css)
-m.get_root().html.add_child(clip_elem)
-
 st_folium(m, use_container_width=True, height=450)
 
 # ==============================
