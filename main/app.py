@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 自定义 CSS：完全控制卡片样式 ====================
+# ==================== 自定义 CSS ====================
 st.markdown("""
 <style>
     /* 隐藏侧边栏 */
@@ -41,7 +41,7 @@ st.markdown("""
         z-index: -1;
     }
 
-    /* 主内容区 */
+    /* 主内容区：毛玻璃 */
     .main > div {
         background-color: rgba(255, 255, 255, 0.85);
         border-radius: 30px;
@@ -50,6 +50,7 @@ st.markdown("""
         max-width: 1200px;
         box-shadow: 0 12px 28px rgba(0, 30, 60, 0.25);
         text-align: center;
+        backdrop-filter: blur(4px);
     }
 
     h1, h2, h3 {
@@ -58,7 +59,7 @@ st.markdown("""
         text-align: center !important;
     }
 
-    /* 卡片网格容器 */
+    /* 卡片网格 */
     .card-grid {
         display: flex;
         flex-wrap: wrap;
@@ -67,16 +68,17 @@ st.markdown("""
         margin: 30px 0;
     }
 
-    /* 单个卡片 */
+    /* 单个卡片：毛玻璃 + 无下划线 */
     .card {
         flex: 1 1 0px;
         min-width: 180px;
-        background: linear-gradient(145deg, #ffffff 0%, #eef6ff 100%);
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(4px);
         border-radius: 24px;
         padding: 24px 12px 16px 12px;
-        text-decoration: none;
+        text-decoration: none !important;
         color: #1a365d !important;
-        border: 1px solid #b8d4f0;
+        border: 1px solid rgba(255, 255, 255, 0.8);
         box-shadow: 0 8px 16px rgba(0, 40, 80, 0.1);
         transition: all 0.3s ease;
         display: flex;
@@ -88,8 +90,9 @@ st.markdown("""
     .card:hover {
         transform: translateY(-6px);
         box-shadow: 0 16px 24px rgba(27, 79, 140, 0.2);
-        background: linear-gradient(145deg, #e6f0ff 0%, #d4e6ff 100%);
-        border-color: #2b6cb0;
+        background: rgba(255, 255, 255, 0.8);
+        border-color: #ffffff;
+        text-decoration: none !important;
     }
 
     /* 卡片标题 */
@@ -121,9 +124,9 @@ st.markdown("""
 # ==================== 主界面 ====================
 st.title("🌏 中国省会城市空气质量实时监测与历史分析")
 
-# 欢迎卡片
+# 欢迎卡片（毛玻璃效果）
 st.markdown("""
-<div style="background: rgba(255,255,255,0.6); border-radius: 24px; padding: 24px 36px; margin: 20px 0; backdrop-filter: blur(4px);">
+<div style="background: rgba(255,255,255,0.6); border-radius: 24px; padding: 24px 36px; margin: 20px 0; backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.8);">
     <h2 style="margin:0 0 12px 0; color:#0a2540; text-align:center;">👋 欢迎使用空气质量洞察平台</h2>
     <p style="font-size:1.15rem; margin:0 auto 10px auto; color:#1a365d; text-align:center;">
         实时监测全国31个省会及直辖市的空气质量，提供历史趋势分析与气象预警服务。
@@ -137,8 +140,7 @@ st.markdown("""
 st.markdown("---")
 st.subheader("📌 功能模块")
 
-# ==================== 自定义 HTML 卡片（四张等宽） ====================
-# Streamlit 多页面路由：/页面文件名（不含扩展名）
+# ==================== 自定义 HTML 卡片（毛玻璃、无下划线、等宽） ====================
 st.markdown("""
 <div class="card-grid">
     <a class="card" href="/1_实时监测" target="_self">
