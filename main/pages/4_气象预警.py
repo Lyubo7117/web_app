@@ -133,9 +133,8 @@ st.title("🚨 全国气象预警实时监测")
 # ==============================
 # 加载数据 — 优先实时 API，fallback 到 Excel
 # ==============================
-@st.cache_data(ttl=600)
 def _load_excel_fallback():
-    """加载 Excel 预警数据（fallback）"""
+    """加载 Excel 预警数据（fallback）— 无缓存，每次实时读取"""
     try:
         return get_latest_alarms()
     except Exception as e:
