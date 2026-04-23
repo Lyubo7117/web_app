@@ -59,10 +59,13 @@ st.markdown("""
         text-align: center !important;
     }
 
-    /* ---- 隐藏 st.page_link 和描述的原始渲染 ---- */
-    [data-testid="stPageLink"],
-    .card-desc {
-        display: none !important;
+    /* ---- 列等宽居中 ---- */
+    div[data-testid="column"] {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
 
     /* ---- 纯 HTML 卡片网格 ---- */
@@ -91,17 +94,19 @@ st.markdown("""
         border-radius: 24px;
         border: 1px solid rgba(255, 255, 255, 0.8);
         box-shadow: 0 8px 16px rgba(0, 40, 80, 0.1);
-        cursor: pointer;
         transition: all 0.3s ease;
-        text-decoration: none;
-        color: #1a365d;
+        text-decoration: none !important;
+        color: #1a365d !important;
         box-sizing: border-box;
+        cursor: pointer;
     }
     .nav-card:hover {
         transform: translateY(-6px);
         box-shadow: 0 16px 24px rgba(27, 79, 140, 0.2);
         background: rgba(255, 255, 255, 0.8);
         border-color: #ffffff;
+        text-decoration: none !important;
+        color: #0a2540 !important;
     }
     .nav-card .card-icon {
         font-size: 2.4rem;
@@ -129,30 +134,6 @@ st.markdown("""
         font-weight: 500;
     }
 </style>
-
-<!-- 功能卡片：纯 HTML 展示，JS 绑定点击跳转到 st.page_link -->
-<div class="card-grid">
-    <div class="nav-card" data-page="实时监测">
-        <span class="card-icon">📍</span>
-        <span class="card-title">实时监测</span>
-        <span class="card-desc-text">最新AQI排名<br>全国热力图 · 实时更新</span>
-    </div>
-    <div class="nav-card" data-page="历史分析">
-        <span class="card-icon">📈</span>
-        <span class="card-title">历史分析</span>
-        <span class="card-desc-text">2015-2024趋势<br>相关性热力图 · 驱动因素</span>
-    </div>
-    <div class="nav-card" data-page="今日快报">
-        <span class="card-icon">📊</span>
-        <span class="card-title">今日快报</span>
-        <span class="card-desc-text">平均AQI · 等级分布<br>首要污染物统计</span>
-    </div>
-    <div class="nav-card" data-page="气象预警">
-        <span class="card-icon">🚨</span>
-        <span class="card-title">气象预警</span>
-        <span class="card-desc-text">预警总数 · 等级分类<br>按省份筛选</span>
-    </div>
-</div>
 """, unsafe_allow_html=True)
 
 # ==================== 主界面 ====================
@@ -175,38 +156,93 @@ st.markdown("---")
 st.subheader("📌 功能模块")
 
 # ==================== 功能卡片 ====================
-# 纯 HTML 卡片负责视觉展示，点击时通过 DOM 查找对应的 st.page_link 链接触发跳转
+# 方案：st.page_link 渲染在每列中，然后用 JS 获取其 href 并注入到 HTML 卡片
+# st.html() 支持 <script>，且与主页面共享 DOM
+import streamlit.components.v1 as components
+
+# 先渲染 st.page_link（隐藏），获取正确路由
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.page_link("pages/1_实时监测.py", label="", icon="")
+    pl1 = st.page_link("pages/1_实时监测.py", label="", icon="")
 with col2:
-    st.page_link("pages/2_历史分析.py", label="", icon="")
+    pl2 = st.page_link("pages/2_历史分析.py", label="", icon="")
 with col3:
-    st.page_link("pages/3_一键分析.py", label="", icon="")
+    pl3 = st.page_link("pages/3_一键分析.py", label="", icon="")
 with col4:
-    st.page_link("pages/4_气象预警.py", label="", icon="")
+    pl4 = st.page_link("pages/4_气象预警.py", label="", icon="")
 
+# HTML 卡片（纯视觉）
 st.markdown("""
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // 获取所有隐藏的 st.page_link 链接
-    var pageLinks = document.querySelectorAll('[data-testid="stPageLink"] a');
-    var cardTargets = document.querySelectorAll('.nav-card');
+<div class="card-grid">
+    <div class="nav-card" data-idx="0">
+        <span class="card-icon">📍</span>
+        <span class="card-title">实时监测</span>
+        <span class="card-desc-text">最新AQI排名<br>全国热力图 · 实时更新</span>
+    </div>
+    <div class="nav-card" data-idx="1">
+        <span class="card-icon">📈</span>
+        <span class="card-title">历史分析</span>
+        <span class="card-desc-text">2015-2024趋势<br>相关性热力图 · 驱动因素</span>
+    </div>
+    <div class="nav-card" data-idx="2">
+        <span class="card-icon">📊</span>
+        <span class="card-title">今日快报</span>
+        <span class="card-desc-text">平均AQI · 等级分布<br>首要污染物统计</span>
+    </div>
+    <div class="nav-card" data-idx="3">
+        <span class="card-icon">🚨</span>
+        <span class="card-title">气象预警</span>
+        <span class="card-desc-text">预警总数 · 等级分类<br>按省份筛选</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-    // 构建映射：根据 st.page_link 的 href 匹配卡片
-    var pages = ['实时监测', '历史分析', '今日快报', '气象预警'];
-    cardTargets.forEach(function(card, idx) {
-        card.addEventListener('click', function() {
-            // 遍历 page_link 找到对应链接
-            pageLinks.forEach(function(link) {
-                if (link.getAttribute('href') && link.getAttribute('href').indexOf(pages[idx]) !== -1) {
+# 用 st.html 注入 JS（点击卡片 → 找到对应的 st.page_link 链接 → 触发跳转）
+st.html("""
+<script>
+function setupCardNav() {
+    const cards = document.querySelectorAll('.nav-card');
+    // 找到所有 st.page_link 渲染的链接（按顺序对应）
+    const pageLinks = document.querySelectorAll('[data-testid="stPageLink"] a, [data-testid="stPageLink"] button');
+    
+    cards.forEach(card => {
+        const idx = parseInt(card.dataset.idx);
+        if (idx < pageLinks.length) {
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', () => {
+                const link = pageLinks[idx];
+                if (link.tagName === 'A') {
+                    window.location.href = link.href;
+                } else if (link.tagName === 'BUTTON') {
                     link.click();
                 }
             });
-        });
+        }
     });
-});
+}
+
+// 等待 Streamlit 渲染完成
+setTimeout(setupCardNav, 1000);
+setTimeout(setupCardNav, 2000);
+setTimeout(setupCardNav, 3000);
 </script>
+""")
+
+# 隐藏 st.page_link 和空列
+st.markdown("""
+<style>
+    [data-testid="stPageLink"] {
+        visibility: hidden !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        pointer-events: none !important;
+    }
+</style>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
