@@ -137,27 +137,7 @@ st.markdown("""
         padding: 12px 14px;
         line-height: 1.9;
     }
-    /* 地图容器：固定高度，消除右侧和下方多余留白 */
-    div[data-testid="stFolium"] {
-        padding: 0 !important;
-        margin: 0 !important;
-        max-height: 410px;
-        overflow: hidden;
-        background: transparent !important;
-        border-radius: 8px;
-    }
-    /* 地图 iframe 紧贴容器 */
-    div[data-testid="stFolium"] > iframe {
-        display: block;
-        margin: 0 auto;
-        border-radius: 8px;
-        max-height: 400px !important;
-    }
-    /* 去除地图组件底部外边距（紧贴分割线） */
-    .stFoliumMap {
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
-    }
+    /* 地图容器样式（由下方内联CSS统一控制） */
     .aqi-legend-float b {
         display: block;
         margin-bottom: 4px;
@@ -405,26 +385,33 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
 if all_locs:
     m.fit_bounds(all_locs, padding=(30, 30))
 
-st_folium(m, use_container_width=True, height=400)
-
-# ==============================
-# 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
-# ==============================
+# 去除地图容器的CSS（只在这个页面生效）
 st.markdown("""
-<div class="aqi-legend-float">
-<b>📊 空气质量等级 (AQI)</b>
-<div class="lg-item"><i style="background:#00e400;"></i> 优 (0–50)</div>
-<div class="lg-item"><i style="background:#ffff00;"></i> 良 (51–100)</div>
-<div class="lg-item"><i style="background:#ff7e00;"></i> 轻度污染 (101–150)</div>
-<div class="lg-item"><i style="background:#ff0000;"></i> 中度污染 (151–200)</div>
-<div class="lg-item"><i style="background:#99004c;"></i> 重度污染 (201–300)</div>
-<div class="lg-item"><i style="background:#7e0023;"></i> 严重污染 (>300)</div>
-</div>
+<style>
+    /* 去掉主内容区的白色背景和圆角 */
+    .main > div {
+        background: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+    }
+    /* 去掉folium地图容器的多余边距 */
+    .stFoliumMap {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    /* 去掉iframe周围的所有边距 */
+    iframe {
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block;
+    }
+</style>
 """, unsafe_allow_html=True)
 
+# 地图直接渲染，无容器包裹
+st_folium(m, use_container_width=True, height=550)
 
-# ==============================
-# 制作人信息
-# ==============================
 st.markdown("---")
 st.caption("👨‍💻 制作人：刘宇博 · 江毅 · 张睿 ｜ 大数据与人工智能导论课程项目")
