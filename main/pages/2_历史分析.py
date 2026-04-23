@@ -17,6 +17,42 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), '..', 'static')
 
 
 # ==============================
+# 蓝色主题 CSS
+# ==============================
+st.markdown("""
+<style>
+    .stApp {
+        background: linear-gradient(135deg, #f0f8ff 0%, #e6f2ff 100%);
+    }
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1a365d 0%, #0f2440 100%);
+    }
+    section[data-testid="stSidebar"] * {
+        color: #ffffff !important;
+    }
+    section[data-testid="stSidebar"] button {
+        background: #2b6cb0 !important;
+        color: white !important;
+        border-radius: 8px !important;
+    }
+    h1, h2, h3 {
+        color: #0a2540 !important;
+        font-weight: 600 !important;
+    }
+    .stImage {
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 49, 102, 0.1);
+        border: 1px solid #cce0ff;
+    }
+    .stAlert {
+        border-radius: 10px;
+        border-left: 4px solid #2b6cb0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ==============================
 # 页面标题
 # ==============================
 st.title("📈 历史趋势与驱动因素分析（2015-2024）")
@@ -82,3 +118,10 @@ st.success("""
 是影响 AQI 最重要的规划因素。绿地覆盖率与 AQI 呈显著负相关，建议在国土空间
 规划中加强生态空间保护和通风廊道建设。
 """)
+
+
+# ==============================
+# 制作人信息
+# ==============================
+st.markdown("---")
+st.caption("👨‍💻 制作人：刘宇博 · 江毅 · 张睿 ｜ 大数据与人工智能导论课程项目")

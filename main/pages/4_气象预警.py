@@ -26,6 +26,57 @@ except ImportError as e:
 
 
 # ==============================
+# 蓝色主题 CSS
+# ==============================
+st.markdown("""
+<style>
+    .stApp {
+        background: linear-gradient(135deg, #f0f8ff 0%, #e6f2ff 100%);
+    }
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1a365d 0%, #0f2440 100%);
+    }
+    section[data-testid="stSidebar"] * {
+        color: #ffffff !important;
+    }
+    section[data-testid="stSidebar"] button {
+        background: #2b6cb0 !important;
+        color: white !important;
+        border-radius: 8px !important;
+    }
+    h1, h2, h3 {
+        color: #0a2540 !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stMetric"] {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0, 49, 102, 0.1);
+        border: 1px solid #cce0ff;
+    }
+    div[data-testid="stDataFrame"] {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #cce0ff;
+    }
+    div[data-testid="stDataFrame"] th {
+        background: #1e4d8c !important;
+        color: white !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stDataFrame"] td {
+        background: white !important;
+    }
+    .stAlert {
+        border-radius: 10px;
+        border-left: 4px solid #2b6cb0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ==============================
 # 页面标题
 # ==============================
 st.title("🚨 全国气象预警实时监测")
@@ -160,3 +211,10 @@ if all(col in df_filtered.columns for col in display_columns):
 else:
     st.warning("表格列名不完整，实际列名：" + str(list(df_filtered.columns)))
     st.dataframe(df_filtered, use_container_width=True, height=400)
+
+
+# ==============================
+# 制作人信息
+# ==============================
+st.markdown("---")
+st.caption("👨‍💻 制作人：刘宇博 · 江毅 · 张睿 ｜ 大数据与人工智能导论课程项目")

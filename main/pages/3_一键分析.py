@@ -25,6 +25,62 @@ from utils.excel_parser import get_latest_aqi_snapshot
 
 
 # ==============================
+# 蓝色主题 CSS
+# ==============================
+st.markdown("""
+<style>
+    .stApp {
+        background: linear-gradient(135deg, #f0f8ff 0%, #e6f2ff 100%);
+    }
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1a365d 0%, #0f2440 100%);
+    }
+    section[data-testid="stSidebar"] * {
+        color: #ffffff !important;
+    }
+    section[data-testid="stSidebar"] button {
+        background: #2b6cb0 !important;
+        color: white !important;
+        border-radius: 8px !important;
+    }
+    h1, h2, h3 {
+        color: #0a2540 !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stMetric"] {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0, 49, 102, 0.1);
+        border: 1px solid #cce0ff;
+    }
+    div[data-testid="stDataFrame"] {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #cce0ff;
+    }
+    .stButton button {
+        background: linear-gradient(135deg, #2b6cb0 0%, #1a365d 100%);
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 8px 20px !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    .stButton button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(27, 79, 140, 0.3);
+    }
+    .stAlert {
+        border-radius: 10px;
+        border-left: 4px solid #2b6cb0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ==============================
 # AQI 等级配色
 # ==============================
 LEVEL_MAP = {
@@ -267,3 +323,10 @@ with right_col:
 
 st.markdown("---")
 st.info("💡 本报告基于中国天气网实时爬取数据自动生成，每日自动更新。历史深度分析请查看「历史分析」页面。")
+
+
+# ==============================
+# 制作人信息
+# ==============================
+st.markdown("---")
+st.caption("👨‍💻 制作人：刘宇博 · 江毅 · 张睿 ｜ 大数据与人工智能导论课程项目")
