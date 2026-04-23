@@ -180,7 +180,8 @@ daily_avg.columns = ['日期', '全国平均AQI']
 city_daily = df_all.groupby(['city', 'date'])['aqi'].mean().reset_index()
 
 import plotly.express as px
-colors = px.colors.qualitative.Plotly
+# 拼接多个调色板，确保32+城市每条线颜色不同
+colors = px.colors.qualitative.Alphabet + px.colors.qualitative.Dark24 + px.colors.qualitative.Set3
 
 fig_trend = go.Figure()
 
