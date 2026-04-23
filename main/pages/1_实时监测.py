@@ -137,20 +137,21 @@ st.markdown("""
         padding: 12px 14px;
         line-height: 1.9;
     }
-    /* 地图容器：精确高度550px，裁剪底部白色溢出 */
+    /* 地图容器：固定高度，消除右侧和下方多余留白 */
     div[data-testid="stFolium"] {
         padding: 0 !important;
         margin: 0 !important;
-        height: 550px !important;
-        max-height: 550px !important;
-        overflow: hidden !important;
+        max-height: 560px;
+        overflow: hidden;
         background: transparent !important;
         border-radius: 8px;
     }
+    /* 地图 iframe 紧贴容器 */
     div[data-testid="stFolium"] > iframe {
         display: block;
-        height: 550px !important;
+        margin: 0 auto;
         border-radius: 8px;
+        max-height: 550px !important;
     }
     .aqi-legend-float b {
         display: block;
@@ -399,7 +400,7 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
             if pd.notna(row.get('lat')) and pd.notna(row.get('lon'))
             and float(row.get('lat', 0)) != 0 and float(row.get('lon', 0)) != 0]
 if all_locs:
-    m.fit_bounds(all_locs, padding=(10, 10))
+    m.fit_bounds(all_locs, padding=(30, 30))
 
 st_folium(m, use_container_width=True, height=550)
 
