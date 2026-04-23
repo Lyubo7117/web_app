@@ -112,10 +112,21 @@ if df.empty:
 # ==============================
 # 数据更新时间
 # ==============================
-if 'update_time' in df.columns:
-    update_time = df['update_time'].max()
+time_col = None
+for col_name in ['datetime', 'update_time', '数据时间']:
+    if col_name in df.columns:
+        time_col = col_name
+        break
+
+if time_col:
+    try:
+        latest_dt = pd.to_datetime(df[time_col]).max()
+        update_time = latest_dt.strftime('%Y-%m-%d %H:%M') if pd.notna(latest_dt) else '未知'
+    except Exception:
+        update_time = '未知'
 else:
     update_time = '未知'
+
 st.markdown(f"**📡 数据来源：** {data_source}")
 st.markdown(f"**📡 数据时间：** {update_time}")
 
