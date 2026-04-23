@@ -38,11 +38,13 @@ _COLUMN_MAP = {
 def get_latest_alarms(data_folder=None):
     """
     从 data_output/alarms/ 目录中获取最新的预警Excel文件并解析。
-    header=1 读取（第1行大标题，第2行列名），含按位置提取后备方案。
+    使用 openpyxl 直接读取原始单元格，绕过 pandas 自动表头识别。
+    Excel结构：第1行大标题，第2行元数据，第3行列名，第4行起数据。
     返回 (DataFrame, latest_file, debug_info)
     """
     import re
     import traceback
+    from openpyxl import load_workbook
 
     debug = []
     debug.append("[开始] get_latest_alarms 执行")
@@ -88,53 +90,66 @@ def get_latest_alarms(data_folder=None):
     debug.append(f"[文件] 完整路径: {latest_file}")
 
     try:
-        # 关键：第二行为列名 (header=1)，第一行是大标题合并单元格
-        df = pd.read_excel(latest_file, header=1, engine='openpyxl')
-        debug.append(f"[解析] 使用header=1，原始列名: {list(df.columns)[:8]}")
+        # 使用 openpyxl 直接读取，绕过 pandas 的自动解析
+        wb = load_workbook(latest_file, data_only=True)
+        ws = wb.active
 
-        # 清理列名（去除空格和换行）
-        def clean_col(col):
-            if pd.isna(col):
+        # 获取所有行数据
+        rows = list(ws.iter_rows(values_only=True))
+        if len(rows) < 4:
+            debug.append("[错误] Excel 行数不足4行，无法解析")
+            return pd.DataFrame(), latest_file, debug
+
+        # 根据实际观察：
+        # 第1行：大标题（忽略）
+        # 第2行：爬取时间等元数据（忽略）
+        # 第3行：真正的列名
+        # 第4行开始：数据
+        header_row = rows[2]
+        data_rows = rows[3:]
+
+        # 清理单元格值
+        def clean_val(v):
+            if v is None:
                 return ''
-            return re.sub(r'[\s\n\r]+', '', str(col))
-        df.columns = [clean_col(c) for c in df.columns]
-        debug.append(f"[解析] 清理后列名: {list(df.columns)}")
+            return re.sub(r'[\s\n\r]+', '', str(v)).strip()
 
+        columns = [clean_val(c) for c in header_row]
+        debug.append(f"[解析] 提取到的列名: {columns[:10]}")
+
+        # 构建 DataFrame
+        df = pd.DataFrame(data_rows, columns=columns)
         # 删除全空行
         df = df.dropna(how='all')
-        # 如果第一行仍然是标题残留（不包含"省份"），跳过
-        if len(df) > 0 and '省份' not in str(df.iloc[0].values):
-            df = df.iloc[1:]
+        debug.append(f"[解析] 数据行数: {len(df)}")
 
-        debug.append(f"[解析] 最终数据行数: {len(df)}")
-
-        # 检查必要列
+        # 智能映射需要的列（根据列名中的关键词）
         required = ['省份', '城市', '预警类型', '预警等级', '发布时间', '解除时间']
-        found_cols = [c for c in df.columns if any(r in c for r in required)]
-        debug.append(f"[映射] 找到的相关列: {found_cols}")
+        col_map = {}
+        for req in required:
+            for col in df.columns:
+                if req in col:
+                    col_map[req] = col
+                    break
 
-        if all(any(r in c for c in df.columns) for r in required):
-            col_mapping = {}
-            for req in required:
-                for col in df.columns:
-                    if req in col:
-                        col_mapping[req] = col
-                        break
-            df_out = df[[col_mapping[r] for r in required]].copy()
+        if len(col_map) == len(required):
+            df_out = df[[col_map[r] for r in required]].copy()
             df_out.columns = required
-            # 删除省份和城市均为空的无效行
+            # 删除省份、城市均为空的行
             df_out = df_out.dropna(subset=['省份', '城市'], how='all')
-            debug.append(f"[完成] 解析到 {len(df_out)} 条预警记录")
+            debug.append(f"[完成] 解析到 {len(df_out)} 条有效预警记录")
             return df_out, latest_file, debug
         else:
             # 后备：按位置提取前6列
+            debug.append(f"[警告] 列名映射失败，使用位置提取。找到的列: {col_map}")
             if len(df.columns) >= 6:
                 df_out = df.iloc[:, :6].copy()
                 df_out.columns = required
-                debug.append(f"[后备] 按位置提取前6列，得到 {len(df_out)} 条记录")
+                df_out = df_out.dropna(subset=['省份', '城市'], how='all')
+                debug.append(f"[完成] 按位置提取到 {len(df_out)} 条记录")
                 return df_out, latest_file, debug
             else:
-                debug.append("[错误] 无法解析列名，且列数不足6")
+                debug.append("[错误] 列数不足6，无法提取")
                 return pd.DataFrame(), latest_file, debug
 
     except Exception as e:
