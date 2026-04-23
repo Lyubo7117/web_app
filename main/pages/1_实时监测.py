@@ -391,34 +391,27 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
 if all_locs:
     m.fit_bounds(all_locs, padding=(30, 30))
 
-# ========== 图例（branca MacroElement 嵌入地图） ==========
-legend_html = '''
-{% macro html(this, kwargs) %}
-<div style="position: fixed; bottom: 120px; right: 18px; width: 195px;
-            border:2px solid #1a365d; z-index: 99999 !important; font-size: 13px;
-            background-color: white; opacity: 0.92; border-radius: 10px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
-  <div style="padding: 10px;">
-    <b>📊 空气质量等级 (AQI)</b><br>
-    <i style="background:#A8E05F; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 优 (0-50)<br>
-    <i style="background:#FDD74B; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 良 (51-100)<br>
-    <i style="background:#FE9B57; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 轻度污染 (101-150)<br>
-    <i style="background:#FE6A69; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 中度污染 (151-200)<br>
-    <i style="background:#A97ABC; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 重度污染 (201-300)<br>
-    <i style="background:#A87383; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 严重污染 (>300)
-  </div>
-</div>
-{% endmacro %}
-'''
-legend = MacroElement()
-legend._template = Template(legend_html)
-m.get_root().add_child(legend)
-
 # ========== 用 components.html 渲染（精确控制高度） ==========
 fig = Figure(height=450, width='100%')
 m.add_to(fig)
 map_html = fig.render()
 components.html(map_html, height=450, scrolling=False)
+
+
+# ==============================
+# 右下角 AQI 图例 — 浮动层（st.markdown 渲染）
+# ==============================
+st.markdown("""
+<div class="aqi-legend-float">
+<b>📊 空气质量等级 (AQI)</b>
+<div class="lg-item"><i style="background:#A8E05F;"></i> 优 (0–50)</div>
+<div class="lg-item"><i style="background:#FDD74B;"></i> 良 (51–100)</div>
+<div class="lg-item"><i style="background:#FE9B57;"></i> 轻度污染 (101–150)</div>
+<div class="lg-item"><i style="background:#FE6A69;"></i> 中度污染 (151–200)</div>
+<div class="lg-item"><i style="background:#A97ABC;"></i> 重度污染 (201–300)</div>
+<div class="lg-item"><i style="background:#A87383;"></i> 严重污染 (>300)</div>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ==============================
