@@ -110,25 +110,50 @@ if df.empty:
 
 
 # ==============================
-# 数据更新时间
+# 数据来源 & 更新时间
 # ==============================
-time_col = None
-for col_name in ['datetime', 'update_time', '数据时间']:
-    if col_name in df.columns:
-        time_col = col_name
-        break
+import re as _re
 
-if time_col:
-    try:
-        latest_dt = pd.to_datetime(df[time_col]).max()
-        update_time = latest_dt.strftime('%Y-%m-%d %H:%M') if pd.notna(latest_dt) else '未知'
-    except Exception:
-        update_time = '未知'
+# --- 解析更新时间 ---
+update_time = '未知'
+city_count = 0
+
+if data_source == '手动上传Excel文件' and uploaded_file is not None:
+    update_time = '上传时间'
 else:
-    update_time = '未知'
+    # 1) 优先从 DataFrame 的 datetime 列获取
+    time_col = None
+    for col_name in ['datetime', 'update_time', '数据时间']:
+        if col_name in df.columns:
+            time_col = col_name
+            break
 
-st.markdown(f"**📡 数据来源：** {data_source}")
-st.markdown(f"**📡 数据时间：** {update_time}")
+    if time_col:
+        try:
+            latest_dt = pd.to_datetime(df[time_col]).max()
+            if pd.notna(latest_dt):
+                update_time = latest_dt.strftime('%Y-%m-%d %H:%M')
+        except Exception:
+            pass
+
+    # 2) 如果 datetime 列不可用，从批次文件夹名解析（如 "20260422_184859"）
+    if update_time == '未知' and run_dir:
+        batch_name = os.path.basename(run_dir)
+        m = _re.match(r'(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})', batch_name)
+        if m:
+            update_time = f"{m.group(1)}-{m.group(2)}-{m.group(3)} {m.group(4)}:{m.group(5)}"
+
+city_count = len(df)
+
+# --- 信息栏 ---
+st.markdown("#### 📡 数据信息")
+col_a, col_b, col_c = st.columns(3)
+if data_source == '手动上传Excel文件' and uploaded_file is not None:
+    col_a.metric("数据来源", "用户上传 Excel")
+else:
+    col_a.metric("数据来源", "中国天气网", "weather.com.cn")
+col_b.metric("更新时间", update_time)
+col_c.metric("覆盖城市", f"{city_count} 个")
 
 
 # ==============================

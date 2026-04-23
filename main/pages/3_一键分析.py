@@ -1,115 +1,272 @@
 """
 3_一键分析.py
-Streamlit 多页面应用 — 历史分析汇总页面
+Streamlit 多页面应用 — 今日空气质量快报（基于实时数据）
 
 功能：
-- 一键展示 MemberB 的静态分析成果（趋势图、相关性、随机森林）
-- 提供核心文字结论
+- 从爬虫最新数据生成今日 AQI 快报
+- 关键指标：全国平均 AQI、最优/最差城市
+- AQI 等级分布饼图（plotly）
+- 首要污染物频次条形图（plotly）
+- Top 5 最佳/最差城市表格
+- 刷新按钮
 """
 
 import streamlit as st
+import sys
 import os
+import re
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
-# 图片目录：static/
-STATIC_DIR = os.path.join(os.path.dirname(__file__), '..', 'static')
-STATIC_DIR = os.path.normpath(STATIC_DIR)
+# 确保可以导入 utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.excel_parser import get_latest_aqi_snapshot
+
+
+# ==============================
+# AQI 等级配色
+# ==============================
+LEVEL_MAP = {
+    '优': ('#00e400', '优 (0-50)'),
+    '良': ('#ffff00', '良 (51-100)'),
+    '轻度污染': ('#ff7e00', '轻度污染 (101-150)'),
+    '中度污染': ('#ff0000', '中度污染 (151-200)'),
+    '重度污染': ('#99004c', '重度污染 (>200)'),
+    '严重污染': ('#7e0023', '严重污染 (>300)'),
+}
+
+# 标准 AQI 等级函数
+def aqi_to_level(val):
+    if val <= 50: return '优'
+    elif val <= 100: return '良'
+    elif val <= 150: return '轻度污染'
+    elif val <= 200: return '中度污染'
+    elif val <= 300: return '重度污染'
+    else: return '严重污染'
 
 
 # ==============================
 # 页面标题
 # ==============================
-st.title("📈 一键查看历史分析结果")
-st.markdown("基于 **2015—2024 年 34 个省会城市** 的空气质量历史数据，以下为完整分析成果。")
+st.title("📊 今日空气质量快报（基于实时数据）")
+st.markdown("自动加载最新爬取数据，生成全国空气质量概览。")
 st.markdown("---")
 
 
 # ==============================
-# 一、十年空气质量变化趋势
+# 加载数据（带缓存 + 刷新按钮）
 # ==============================
-st.header("一、十年空气质量变化趋势")
+@st.cache_data(ttl=600)
+def _load_data():
+    """加载爬虫最新批次数据。"""
+    return get_latest_aqi_snapshot()
 
-st.markdown("""
-下图展示了 2015—2024 年 34 个省会城市 AQI 的年度变化趋势。
-红色粗线为全国年均均值，半透明线条为各城市的独立走势。
-总体呈下降趋势，说明全国空气质量持续改善。
-""")
+if st.button("🔄 刷新数据"):
+    st.cache_data.clear()
+    st.rerun()
 
-img1 = os.path.join(STATIC_DIR, '01_趋势总览图.png')
-if os.path.exists(img1):
-    st.image(img1, use_container_width=True)
+df, run_dir, debug_info = _load_data()
+
+# 调试信息
+with st.expander("🔧 调试信息", expanded=False):
+    for line in debug_info:
+        st.text(line)
+
+
+# ==============================
+# 空数据判断
+# ==============================
+if df.empty:
+    st.warning("暂无实时数据，等待爬虫更新...")
+    st.info(f"数据目录：{run_dir}" if run_dir else "未找到数据目录。")
+    st.stop()
+
+
+# ==============================
+# 数据准备
+# ==============================
+# 确保 aqi 列为数值
+df['aqi'] = pd.to_numeric(df['aqi'], errors='coerce')
+df_valid = df.dropna(subset=['aqi']).copy()
+
+# 确保 level 列存在
+if 'level' not in df_valid.columns:
+    df_valid['level'] = df_valid['aqi'].apply(aqi_to_level)
+
+city_count = len(df_valid)
+
+
+# ==============================
+# 解析更新时间
+# ==============================
+update_time = '未知'
+time_col = None
+for col_name in ['datetime', 'update_time', '数据时间']:
+    if col_name in df_valid.columns:
+        time_col = col_name
+        break
+
+if time_col:
+    try:
+        latest_dt = pd.to_datetime(df_valid[time_col]).max()
+        if pd.notna(latest_dt):
+            update_time = latest_dt.strftime('%Y-%m-%d %H:%M')
+    except Exception:
+        pass
+
+if update_time == '未知' and run_dir:
+    batch_name = os.path.basename(run_dir)
+    m = re.match(r'(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})', batch_name)
+    if m:
+        update_time = f"{m.group(1)}-{m.group(2)}-{m.group(3)} {m.group(4)}:{m.group(5)}"
+
+
+# ==============================
+# 一、数据来源 & 关键指标
+# ==============================
+st.subheader("📡 数据概览")
+st.markdown(f"数据来源：**中国天气网**（weather.com.cn） | 更新时间：**{update_time}** | 覆盖城市：**{city_count}** 个")
+
+avg_aqi = df_valid['aqi'].mean()
+best_row = df_valid.loc[df_valid['aqi'].idxmin()]
+worst_row = df_valid.loc[df_valid['aqi'].idxmax()]
+
+best_city = best_row.get('city_name', '未知')
+best_aqi = best_row.get('aqi', 0)
+best_level = best_row.get('level', aqi_to_level(best_aqi))
+
+worst_city = worst_row.get('city_name', '未知')
+worst_aqi = worst_row.get('aqi', 0)
+worst_level = worst_row.get('level', aqi_to_level(worst_aqi))
+
+m1, m2, m3 = st.columns(3)
+m1.metric("🇨🇳 全国平均 AQI", f"{avg_aqi:.0f}", delta=f"{'↓' if avg_aqi <= 100 else '↑'} {'良好' if avg_aqi <= 100 else '需关注'}")
+m2.metric("🌿 空气最优城市", f"{best_city}", delta=f"AQI {int(best_aqi)} ({best_level})")
+m3.metric("⚠️ 空气最差城市", f"{worst_city}", delta=f"AQI {int(worst_aqi)} ({worst_level})")
+
+st.markdown("---")
+
+
+# ==============================
+# 二、AQI 等级城市数量分布（饼图）
+# ==============================
+st.subheader("🥧 AQI 等级分布")
+
+level_counts = df_valid['level'].value_counts().reset_index()
+level_counts.columns = ['等级', '城市数']
+
+# 确保颜色和排序一致
+level_order = ['优', '良', '轻度污染', '中度污染', '重度污染', '严重污染']
+level_counts['排序'] = level_counts['等级'].apply(lambda x: level_order.index(x) if x in level_order else 99)
+level_counts = level_counts.sort_values('排序')
+
+colors = []
+labels = []
+for _, row in level_counts.iterrows():
+    lv = row['等级']
+    if lv in LEVEL_MAP:
+        colors.append(LEVEL_MAP[lv][0])
+        labels.append(LEVEL_MAP[lv][1])
+    else:
+        colors.append('#999999')
+        labels.append(lv)
+
+fig_pie = px.pie(
+    level_counts, values='城市数', names=labels,
+    color_discrete_sequence=colors,
+    hole=0.4,
+)
+fig_pie.update_layout(
+    margin=dict(t=20, b=20, l=20, r=20),
+    height=420,
+    showlegend=True,
+    legend=dict(orientation='h', yanchor='bottom', y=-0.05),
+    font=dict(size=13),
+)
+fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+
+st.plotly_chart(fig_pie, use_container_width=True)
+
+st.markdown("---")
+
+
+# ==============================
+# 三、首要污染物频次条形图
+# ==============================
+st.subheader("🏭 首要污染物统计")
+
+pollutant_col = None
+for col_name in ['primary_pollutant', 'pollutant', '首要污染物']:
+    if col_name in df_valid.columns:
+        pollutant_col = col_name
+        break
+
+if pollutant_col:
+    # 过滤无效值
+    pollutant_df = df_valid[df_valid[pollutant_col].notna()].copy()
+    pollutant_df[pollutant_col] = pollutant_df[pollutant_col].astype(str).str.strip()
+
+    # 过滤 "优" / "无" / "-" 等非污染物值
+    exclude_vals = {'优', '无', '-', '—', 'nan', '', 'None', 'NaN'}
+    pollutant_df = pollutant_df[~pollutant_df[pollutant_col].isin(exclude_vals)]
+
+    if not pollutant_df.empty:
+        poll_counts = pollutant_df[pollutant_col].value_counts().reset_index()
+        poll_counts.columns = ['污染物', '频次']
+        poll_counts = poll_counts.sort_values('频次', ascending=True)
+
+        fig_bar = px.bar(
+            poll_counts, x='频次', y='污染物',
+            orientation='h',
+            color='频次',
+            color_continuous_scale='Reds',
+            text='频次',
+        )
+        fig_bar.update_layout(
+            margin=dict(t=20, b=20, l=80, r=20),
+            height=max(300, len(poll_counts) * 40 + 60),
+            xaxis_title='城市数量',
+            yaxis_title='',
+            showlegend=False,
+            font=dict(size=13),
+        )
+        fig_bar.update_traces(textposition='outside')
+
+        st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+        st.info("当前所有城市空气质量均达到"优"等级，无首要污染物。")
 else:
-    st.warning(f"图片未找到：{img1}")
-    st.info("请将分析成果图片放入 `static/` 目录。")
-
+    st.info("数据中未找到首要污染物列，无法生成统计图。")
 
 st.markdown("---")
 
 
 # ==============================
-# 二、规划因素相关性分析
+# 四、AQI Top 5 最佳 & 最差城市表格
 # ==============================
-st.header("二、规划因素相关性分析")
+st.subheader("🏆 城市AQI排行榜")
 
-st.markdown("""
-Pearson 相关系数矩阵揭示了空气质量指标与城市规划因素之间的线性关系。
-重点关注 AQI / PM2.5 与建成区面积、人口密度、绿地覆盖率等因子的相关方向与强度。
-""")
+left_col, right_col = st.columns(2)
 
-img2 = os.path.join(STATIC_DIR, '02_相关性热力图.png')
-if os.path.exists(img2):
-    st.image(img2, use_container_width=True)
-else:
-    st.warning(f"图片未找到：{img2}")
+with left_col:
+    st.markdown("#### 🟢 空气最佳 Top 5")
+    best5 = df_valid.nsmallest(5, 'aqi')
+    best5_display = best5[['city_name', 'aqi', 'level']].copy()
+    best5_display.columns = ['城市', 'AQI', '等级']
+    best5_display.reset_index(drop=True, inplace=True)
+    best5_display.index += 1
+    st.dataframe(best5_display, use_container_width=True, height=240)
+
+with right_col:
+    st.markdown("#### 🔴 空气最差 Top 5")
+    worst5 = df_valid.nlargest(5, 'aqi')
+    worst5_display = worst5[['city_name', 'aqi', 'level']].copy()
+    worst5_display.columns = ['城市', 'AQI', '等级']
+    worst5_display.reset_index(drop=True, inplace=True)
+    worst5_display.index += 1
+    st.dataframe(worst5_display, use_container_width=True, height=240)
 
 
 st.markdown("---")
-
-
-# ==============================
-# 三、随机森林驱动因素重要性
-# ==============================
-st.header("三、随机森林驱动因素重要性")
-
-st.markdown("""
-基于随机森林回归模型（Random Forest Regressor），对影响 AQI 的各规划因素
-进行重要性排序。该模型能捕捉非线性关系与特征交互效应，结果比线性相关更具解释力。
-""")
-
-img3 = os.path.join(STATIC_DIR, '03_随机森林重要性.png')
-if os.path.exists(img3):
-    st.image(img3, use_container_width=True)
-else:
-    st.warning(f"图片未找到：{img3}")
-
-
-st.markdown("---")
-
-
-# ==============================
-# 四、核心结论与规划建议
-# ==============================
-st.header("四、核心结论与规划建议")
-
-st.success("""
-**核心发现：**
-
-1. **总体趋势**：2015—2024 年间，全国 34 个省会城市年均 AQI 呈显著下降趋势，
-   空气质量持续改善，"蓝天保卫战"成效显著。
-
-2. **关键驱动因素**：随机森林模型识别出 **建成区面积** 和 **人口密度** 是
-   影响 AQI 最重要的规划因素，其次是第二产业占比和绿地覆盖率。
-
-3. **绿地效益**：绿地覆盖率与 AQI 呈显著负相关，表明增加城市绿地空间
-   对改善空气质量具有积极作用。
-
-**规划启示：**
-
-> 建议在国土空间规划中：① 控制建成区无序蔓延，优化城市空间结构；
-> ② 加强生态空间保护，提升绿地覆盖率；③ 布局城市通风廊道，
-> 促进大气污染物扩散；④ 推动产业转型升级，降低第二产业占比。
-""")
-
-st.info("""
-💡 **数据说明：** 本分析基于 2015—2024 年环境监测公开数据及城市统计年鉴。
-详细数据来源及方法论请参见项目报告。
-""")
+st.info("💡 本报告基于中国天气网实时爬取数据自动生成，每日自动更新。历史深度分析请查看「历史分析」页面。")
