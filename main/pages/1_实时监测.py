@@ -141,7 +141,7 @@ st.markdown("""
     div[data-testid="stFolium"] {
         padding: 0 !important;
         margin: 0 !important;
-        max-height: 460px;
+        max-height: 410px;
         overflow: hidden;
         background: transparent !important;
         border-radius: 8px;
@@ -151,7 +151,12 @@ st.markdown("""
         display: block;
         margin: 0 auto;
         border-radius: 8px;
-        max-height: 450px !important;
+        max-height: 400px !important;
+    }
+    /* 去除地图组件底部外边距（紧贴分割线） */
+    .stFoliumMap {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
     }
     .aqi-legend-float b {
         display: block;
@@ -400,7 +405,7 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
 if all_locs:
     m.fit_bounds(all_locs, padding=(30, 30))
 
-st_folium(m, use_container_width=True, height=450)
+st_folium(m, use_container_width=True, height=400)
 
 # ==============================
 # 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
