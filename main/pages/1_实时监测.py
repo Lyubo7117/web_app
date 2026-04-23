@@ -15,6 +15,8 @@ from streamlit_folium import st_folium
 import pandas as pd
 import sys
 import os
+import json
+import urllib.request
 
 # 确保可以导入 utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -258,6 +260,56 @@ with right_col:
 
 
 # ==============================
+# 加载中国边界 GeoJSON（缓存，避免重复下载）
+# ==============================
+@st.cache_data(ttl=86400, show_spinner=False)
+def _load_china_boundary():
+    """加载中国国界线 GeoJSON（DataV）"""
+    url = 'https://geo.datav.aliyun.com/areas_v3/bound/100000.json'
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    resp = urllib.request.urlopen(req, timeout=15)
+    return json.loads(resp.read().decode('utf-8'))
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _load_ten_dash_line():
+    """加载十段线 GeoJSON（从 GMT 格式解析）"""
+    url = 'https://raw.githubusercontent.com/gmt-china/china-geospatial-data/master/ten-dash-line.gmt'
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    resp = urllib.request.urlopen(req, timeout=15)
+    gmt_text = resp.read().decode('utf-8')
+
+    segments = []
+    current = []
+    for line in gmt_text.strip().split('\n'):
+        line = line.strip()
+        if line.startswith('#') or line.startswith('@'):
+            continue
+        if not line:
+            if current:
+                segments.append(current)
+                current = []
+            continue
+        parts = line.split()
+        if len(parts) >= 2:
+            try:
+                current.append([float(parts[0]), float(parts[1])])
+            except ValueError:
+                pass
+    if current:
+        segments.append(current)
+
+    return {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"name": "ten_dash_line"},
+            "geometry": {"type": "LineString", "coordinates": seg}
+        } for seg in segments if len(seg) >= 2]
+    }
+
+
+# ==============================
 # folium 全国污染热力分布地图
 # ==============================
 st.subheader("🗺️ 全国空气质量分布")
@@ -269,31 +321,48 @@ if df_map.empty:
     st.warning("暂无有效的AQI数据，无法生成热力图")
     st.stop()
 
-m = folium.Map(location=[35, 110], zoom_start=4, tiles=None, control_scale=True)
+m = folium.Map(location=[35, 105], zoom_start=4, tiles=None, control_scale=True)
 
-# 中文地图瓦片（高德地图）
+# 高德中文瓦片
 amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
 folium.TileLayer(
-    tiles=amap_url,
-    attr='&copy; 高德地图',
-    name='高德地图',
-    subdomains='1234',
-    max_zoom=18,
-    overlay=False,
-    control=True,
+    tiles=amap_url, attr='&copy; 高德地图', name='高德地图',
+    subdomains='1234', max_zoom=18, overlay=False, control=True,
 ).add_to(m)
 
 # 备用：CartoDB 底图（海外 fallback）
 cartodb_url = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
 folium.TileLayer(
-    tiles=cartodb_url,
-    attr='&copy; CartoDB',
-    name='CartoDB',
-    max_zoom=18,
-    overlay=False,
-    control=True,
+    tiles=cartodb_url, attr='&copy; CartoDB', name='CartoDB',
+    max_zoom=18, overlay=False, control=True,
 ).add_to(m)
 
+# 中国国界线（含南海诸岛）
+try:
+    boundary_data = _load_china_boundary()
+    folium.GeoJson(
+        boundary_data, name='国界线',
+        style_function=lambda x: {
+            'fillColor': 'transparent', 'color': '#666666',
+            'weight': 1.2, 'fillOpacity': 0,
+        }
+    ).add_to(m)
+except Exception:
+    pass
+
+# 十段线
+try:
+    dash_data = _load_ten_dash_line()
+    folium.GeoJson(
+        dash_data, name='十段线',
+        style_function=lambda x: {
+            'color': '#666666', 'weight': 2, 'dashArray': '6, 4',
+        }
+    ).add_to(m)
+except Exception:
+    pass
+
+# AQI 圆点标记
 for _, row in df_map.iterrows():
     try:
         city = str(row.get('city_name', ''))
@@ -301,7 +370,6 @@ for _, row in df_map.iterrows():
         lat = float(row.get('lat', 0))
         lon = float(row.get('lon', 0))
 
-        # 如果数据中没有经纬度，从字典补充
         if lat == 0.0 and lon == 0.0 and city in CITY_COORDS:
             lat, lon = CITY_COORDS[city]
 
@@ -315,12 +383,8 @@ for _, row in df_map.iterrows():
     level = aqi_level_text(aqi_val)
 
     folium.CircleMarker(
-        location=[lat, lon],
-        radius=radius,
-        color=color,
-        fill=True,
-        fill_color=color,
-        fill_opacity=0.6,
+        location=[lat, lon], radius=radius,
+        color=color, fill=True, fill_color=color, fill_opacity=0.6,
         popup=folium.Popup(
             f"<b>{city}</b><br>AQI: {int(aqi_val)} ({level})",
             max_width=200
@@ -330,29 +394,48 @@ for _, row in df_map.iterrows():
 
 folium.LayerControl().add_to(m)
 
-st_folium(m, width=1100, height=550)
-
-
-# ==============================
-# 颜色图例
-# ==============================
-st.markdown("""
-<style>
-.legend-container {
-    display: flex; gap: 24px; flex-wrap: wrap;
-    justify-content: center; margin-top: 8px;
-}
-.legend-item { display: flex; align-items: center; gap: 6px; font-size: 14px; }
-.legend-dot { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #ccc; }
-</style>
-<div class="legend-container">
-    <div class="legend-item"><div class="legend-dot" style="background:#00e400"></div> 优 (0-50)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#ffff00"></div> 良 (51-100)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#ff7e00"></div> 轻度污染 (101-150)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#ff0000"></div> 中度污染 (151-200)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#99004c"></div> 重度污染 (>200)</div>
+# 自定义右下角图例（通过 folium HTML 浮层）
+legend_html = """
+<div style="
+    position: fixed;
+    bottom: 30px;
+    right: 10px;
+    z-index: 9999;
+    background: rgba(255,255,255,0.92);
+    border-radius: 10px;
+    padding: 12px 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    font-size: 13px;
+    line-height: 1.8;
+    min-width: 130px;
+">
+    <div style="font-weight:700; margin-bottom:6px; color:#0a2540; text-align:center;">AQI 等级图例</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00e400;border:1px solid #bbb;"></span>
+        <span>优 (0-50)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffff00;border:1px solid #bbb;"></span>
+        <span>良 (51-100)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff7e00;border:1px solid #bbb;"></span>
+        <span>轻度污染 (101-150)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff0000;border:1px solid #bbb;"></span>
+        <span>中度污染 (151-200)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#99004c;border:1px solid #bbb;"></span>
+        <span>重度污染 (>200)</span>
+    </div>
 </div>
-""", unsafe_allow_html=True)
+"""
+m.get_root().html.add_child(folium.Element(legend_html))
+
+st_folium(m, width=1100, height=550)
 
 
 # ==============================
