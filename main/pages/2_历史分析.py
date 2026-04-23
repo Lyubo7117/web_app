@@ -98,8 +98,10 @@ st.header("📈 历史趋势与驱动因素分析（动态实时）")
 
 
 # ==================== 数据加载 ====================
+# 强制清除缓存，确保每次加载最新数据
+st.cache_data.clear()
+
 if st.button("🔄 刷新分析"):
-    st.cache_data.clear()
     st.rerun()
 
 with st.spinner("正在从所有历史批次中加载数据..."):

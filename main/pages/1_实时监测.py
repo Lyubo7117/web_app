@@ -421,8 +421,8 @@ folium.LayerControl().add_to(m)
 legend_html = '''
 {% macro html(this, kwargs) %}
 <div style="position: fixed;
-            bottom: 18px; right: 18px; width: 195px;
-            border: 2px solid #1a365d; z-index: 9999; font-size: 13px;
+            bottom: 80px; right: 18px; width: 195px;
+            border: 2px solid #1a365d; z-index: 99999 !important; font-size: 13px;
             background-color: white; opacity: 0.92; border-radius: 10px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
   <div style="padding: 10px;">

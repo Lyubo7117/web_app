@@ -140,18 +140,14 @@ def get_latest_alarms(data_folder=None):
 
             # 填充空白城市名：用省份名 + "（省级预警）" 替代
             if '城市' in df_out.columns:
-                mask_empty = (
-                    df_out['城市'].isna() |
-                    (df_out['城市'].astype(str).str.strip() == '')
+                df_out['城市'] = df_out.apply(
+                    lambda row: row['城市'] if pd.notna(row['城市']) and str(row['城市']).strip() != ''
+                    else f"{row['省份']}（省级预警）" if pd.notna(row['省份']) and str(row['省份']).strip() != ''
+                    else "未知地区",
+                    axis=1
                 )
-                if mask_empty.any():
-                    for idx in df_out[mask_empty].index:
-                        prov = str(df_out.at[idx, '省份']).strip()
-                        if prov and prov != '' and prov.lower() != 'nan':
-                            df_out.at[idx, '城市'] = f"{prov}（省级预警）"
-                        else:
-                            df_out.at[idx, '城市'] = "未知地区"
-                    debug.append(f"[修复] 已填充 {mask_empty.sum()} 个空白城市名")
+                filled_count = ((df_out['城市'].str.contains('省级预警')) | (df_out['城市'] == '未知地区')).sum()
+                debug.append(f"[修复] 已填充 {filled_count} 个空白城市名")
 
             debug.append(f"[完成] 解析到 {len(df_out)} 条有效预警记录")
             return df_out, latest_file, debug
@@ -162,6 +158,16 @@ def get_latest_alarms(data_folder=None):
                 df_out = df.iloc[:, :6].copy()
                 df_out.columns = required
                 df_out = df_out.dropna(subset=['省份', '城市'], how='all')
+
+                # 填充空白城市名（备用路径同样需要）
+                if '城市' in df_out.columns:
+                    df_out['城市'] = df_out.apply(
+                        lambda row: row['城市'] if pd.notna(row['城市']) and str(row['城市']).strip() != ''
+                        else f"{row['省份']}（省级预警）" if pd.notna(row['省份']) and str(row['省份']).strip() != ''
+                        else "未知地区",
+                        axis=1
+                    )
+
                 debug.append(f"[完成] 按位置提取到 {len(df_out)} 条记录")
                 return df_out, latest_file, debug
             else:
