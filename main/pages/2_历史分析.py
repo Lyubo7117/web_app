@@ -179,28 +179,31 @@ daily_avg.columns = ['日期', '全国平均AQI']
 
 city_daily = df_all.groupby(['city', 'date'])['aqi'].mean().reset_index()
 
+import plotly.express as px
+colors = px.colors.qualitative.Plotly
+
 fig_trend = go.Figure()
 
-# 各城市半透明细线
-for city in city_daily['city'].unique():
+for i, city in enumerate(city_daily['city'].unique()):
     cd = city_daily[city_daily['city'] == city]
     fig_trend.add_trace(go.Scatter(
         x=cd['date'], y=cd['aqi'],
         mode='lines', name=city,
-        line=dict(width=1, color='rgba(100, 150, 200, 0.3)'),
+        line=dict(width=1.5, color=colors[i % len(colors)]),
+        opacity=0.7,
         showlegend=False, hoverinfo='name+y'
     ))
 
-# 全国均值红色粗线
 fig_trend.add_trace(go.Scatter(
     x=daily_avg['日期'], y=daily_avg['全国平均AQI'],
     mode='lines+markers', name='全国平均',
     line=dict(width=4, color='#dc3545'),
-    marker=dict(size=4, color='#dc3545'), hoverinfo='name+y'
+    marker=dict(size=5, color='#dc3545'),
+    showlegend=True, hoverinfo='name+y'
 ))
 
 fig_trend.update_layout(
-    title="各城市 AQI 日均值变化趋势（半透明细线）+ 全国均值（红色粗线）",
+    title="各城市 AQI 日均值变化趋势（不同颜色区分）+ 全国均值（红色粗线）",
     xaxis_title="日期", yaxis_title="AQI",
     hovermode="x unified", template="plotly_white",
     height=500, font=dict(color="#0a2540"),
