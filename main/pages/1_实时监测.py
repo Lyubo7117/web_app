@@ -137,14 +137,24 @@ st.markdown("""
         padding: 12px 14px;
         line-height: 1.9;
     }
-    /* 地图容器：消除右侧和下方多余留白 */
+    /* 地图容器：固定高度，消除右侧和下方多余留白 */
     div[data-testid="stFolium"] {
         padding: 0 !important;
         margin: 0 !important;
+        max-height: 560px;
+        overflow: hidden;
+        background: transparent !important;
     }
+    /* 地图 iframe 紧贴容器 */
     div[data-testid="stFolium"] > iframe {
         display: block;
         margin: 0 auto;
+        border-radius: 8px;
+    }
+    /* 地图区块下方不留空白 */
+    div[data-testid="stFolium"].css-ocdqkq {
+        padding-bottom: 0 !important;
+        margin-bottom: 0 !important;
     }
     .aqi-legend-float b {
         display: block;
@@ -432,7 +442,7 @@ for _, row in df_map.iterrows():
     ).add_to(m)
 
 folium.LayerControl().add_to(m)
-st_folium(m, use_container_width=True, height=380)
+st_folium(m, use_container_width=True, height=550)
 
 # ==============================
 # 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
