@@ -23,6 +23,23 @@ from utils.city_coords import CITY_COORDS
 
 
 # ==============================
+# 自定义侧边栏导航
+# ==============================
+with st.sidebar:
+    st.markdown("### 🌏 导航")
+    if st.button("🏠 首页", key="sidebar_home", use_container_width=True):
+        st.switch_page("app.py")
+    st.markdown("---")
+    if st.button("📍 实时监测", key="sidebar_realtime", use_container_width=True):
+        st.switch_page("pages/1_实时监测.py")
+    if st.button("📈 历史分析", key="sidebar_history", use_container_width=True):
+        st.switch_page("pages/2_历史分析.py")
+    if st.button("📊 今日快报", key="sidebar_report", use_container_width=True):
+        st.switch_page("pages/3_今日快报.py")
+    if st.button("🚨 气象预警", key="sidebar_warning", use_container_width=True):
+        st.switch_page("pages/4_气象预警.py")
+
+# ==============================
 # 蓝色主题 CSS
 # ==============================
 st.markdown("""
@@ -32,6 +49,10 @@ st.markdown("""
     }
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, #1a365d 0%, #0f2440 100%);
+    }
+    /* 隐藏原生侧边栏导航（文件名显示） */
+    [data-testid="stSidebarNav"] {
+        display: none !important;
     }
     section[data-testid="stSidebar"] * {
         color: #ffffff !important;

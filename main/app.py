@@ -157,7 +157,7 @@ with col2:
 
 with col3:
     if st.button("📊 今日快报\n\n平均AQI · 等级分布 · 首要污染物统计", key="nav_report", use_container_width=True):
-        st.switch_page("pages/3_一键分析.py")
+        st.switch_page("pages/3_今日快报.py")
 
 with col4:
     if st.button("🚨 气象预警\n\n预警总数 · 等级分类 · 按省份筛选", key="nav_warning", use_container_width=True):
