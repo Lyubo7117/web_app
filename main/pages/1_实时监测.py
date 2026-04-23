@@ -137,21 +137,19 @@ st.markdown("""
         padding: 12px 14px;
         line-height: 1.9;
     }
-    /* 地图容器：固定高度，消除右侧和下方多余留白 */
+    /* 地图容器：背景与页面融合 */
     div[data-testid="stFolium"] {
         padding: 0 !important;
         margin: 0 !important;
-        max-height: 560px;
-        overflow: hidden;
-        background: transparent !important;
-        border-radius: 8px;
+        background: linear-gradient(135deg, #f0f8ff 0%, #e6f2ff 100%) !important;
     }
-    /* 地图 iframe 紧贴容器 */
     div[data-testid="stFolium"] > iframe {
         display: block;
-        margin: 0 auto;
         border-radius: 8px;
-        max-height: 550px !important;
+    }
+    /* leaflet地图内部背景也改为透明/与页面同色 */
+    .leaflet-container {
+        background: linear-gradient(135deg, #f0f8ff 0%, #e6f2ff 100%) !important;
     }
     .aqi-legend-float b {
         display: block;
