@@ -1,9 +1,9 @@
 """
 1_实时监测.py
-Streamlit 多页面应用 — 实时监测页面
+Streamlit 多页面应用 - 实时监测页面
 
 功能：
-- 根据侧边栏数据源选择，加载爬虫数据或用户上传的 Excel
+- 优先调用实时 API 获取最新 AQI 数据，失败时 fallback 到本地 Excel
 - 展示最新 AQI 排名（最佳/最差 Top 10）
 - folium 全国污染热力分布地图
 - 手动刷新按钮
@@ -18,7 +18,8 @@ import os
 
 # 确保可以导入 utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils.excel_parser import get_latest_aqi_snapshot, parse_uploaded_excel
+from utils.realtime_aqi import fetch_realtime_aqi
+from utils.excel_parser import get_latest_aqi_snapshot
 from utils.city_coords import CITY_COORDS
 
 
@@ -110,32 +111,20 @@ st.markdown("""
 # ==============================
 # AQI 等级颜色映射
 # ==============================
-def aqi_color(value: float) -> str:
-    """根据 AQI 数值返回 HTML 颜色代码（国标 GB 3095）。"""
-    if value <= 50:
-        return '#00e400'
-    elif value <= 100:
-        return '#ffff00'
-    elif value <= 150:
-        return '#ff7e00'
-    elif value <= 200:
-        return '#ff0000'
-    else:
-        return '#99004c'
+def aqi_color(value):
+    if value <= 50:    return '#00e400'
+    elif value <= 100: return '#ffff00'
+    elif value <= 150: return '#ff7e00'
+    elif value <= 200: return '#ff0000'
+    else:              return '#99004c'
 
 
-def aqi_level_text(value: float) -> str:
-    """返回 AQI 对应的中文等级文字。"""
-    if value <= 50:
-        return '优'
-    elif value <= 100:
-        return '良'
-    elif value <= 150:
-        return '轻度污染'
-    elif value <= 200:
-        return '中度污染'
-    else:
-        return '重度污染'
+def aqi_level_text(value):
+    if value <= 50:    return '优'
+    elif value <= 100: return '良'
+    elif value <= 150: return '轻度污染'
+    elif value <= 200: return '中度污染'
+    else:              return '重度污染'
 
 
 # ==============================
@@ -151,86 +140,54 @@ if st.button("🔄 手动刷新数据"):
 
 
 # ==============================
-# 加载数据 — 根据侧边栏选择切换数据源
+# 加载数据 — 优先实时 API，fallback 到 Excel
 # ==============================
 @st.cache_data(ttl=300)
-def _load_crawler_data():
-    """加载爬虫最新批次数据，返回 (df, run_dir, debug_info)。"""
+def _load_excel_fallback():
+    """加载爬虫 Excel 数据（fallback）"""
     return get_latest_aqi_snapshot()
 
 
-def _load_uploaded_data(uploaded_file):
-    """解析用户上传的 Excel（不缓存，每次重新解析）。"""
-    df = parse_uploaded_excel(uploaded_file)
-    debug = ["数据来源：用户上传的 Excel 文件", f"解析到 {len(df)} 条记录"]
-    return df, '', debug
+# 优先使用实时 API
+with st.spinner("📡 正在获取最新空气质量数据..."):
+    df, update_time, debug_info = fetch_realtime_aqi(cache_ttl=600)
+    data_source_label = "实时 API（中国天气网）"
 
+    # 实时 API 失败时 fallback 到 Excel
+    if df.empty:
+        st.info("实时 API 暂不可用，正在加载本地缓存数据...")
+        df, run_dir, debug_info = _load_excel_fallback()
+        data_source_label = "本地缓存数据"
+        update_time = '未知'
 
-# 从 session_state 获取侧边栏选择的数据源
-data_source = st.session_state.get('data_source_select', '使用爬虫最新数据')
-uploaded_file = st.session_state.get('uploaded_file', None)
+        if not df.empty:
+            for col_name in ['datetime', 'update_time', '数据时间']:
+                if col_name in df.columns:
+                    try:
+                        latest_dt = pd.to_datetime(df[col_name]).max()
+                        if pd.notna(latest_dt):
+                            update_time = latest_dt.strftime('%Y-%m-%d %H:%M')
+                    except Exception:
+                        pass
+                    break
 
-if data_source == '手动上传Excel文件' and uploaded_file is not None:
-    df, run_dir, debug_info = _load_uploaded_data(uploaded_file)
-else:
-    df, run_dir, debug_info = _load_crawler_data()
-
-
-
+city_count = len(df)
 
 
 # ==============================
 # 空数据判断
 # ==============================
 if df.empty:
-    st.warning("暂无实时数据，请等待爬虫采集或上传 Excel 文件...")
-    st.info(f"数据目录：{run_dir}" if run_dir else "未找到数据目录，请确认爬虫已运行并生成数据。")
+    st.warning("暂无实时数据，请稍后重试...")
     st.stop()
 
 
 # ==============================
-# 数据来源 & 更新时间
+# 数据信息栏
 # ==============================
-import re as _re
-
-# --- 解析更新时间 ---
-update_time = '未知'
-city_count = 0
-
-if data_source == '手动上传Excel文件' and uploaded_file is not None:
-    update_time = '上传时间'
-else:
-    # 1) 优先从 DataFrame 的 datetime 列获取
-    time_col = None
-    for col_name in ['datetime', 'update_time', '数据时间']:
-        if col_name in df.columns:
-            time_col = col_name
-            break
-
-    if time_col:
-        try:
-            latest_dt = pd.to_datetime(df[time_col]).max()
-            if pd.notna(latest_dt):
-                update_time = latest_dt.strftime('%Y-%m-%d %H:%M')
-        except Exception:
-            pass
-
-    # 2) 如果 datetime 列不可用，从批次文件夹名解析（如 "20260422_184859"）
-    if update_time == '未知' and run_dir:
-        batch_name = os.path.basename(run_dir)
-        m = _re.match(r'(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})', batch_name)
-        if m:
-            update_time = f"{m.group(1)}-{m.group(2)}-{m.group(3)} {m.group(4)}:{m.group(5)}"
-
-city_count = len(df)
-
-# --- 信息栏 ---
 st.markdown("#### 📡 数据信息")
 col_a, col_b, col_c = st.columns(3)
-if data_source == '手动上传Excel文件' and uploaded_file is not None:
-    col_a.metric("数据来源", "用户上传 Excel")
-else:
-    col_a.metric("数据来源", "中国天气网", "weather.com.cn")
+col_a.metric("数据来源", data_source_label)
 col_b.metric("更新时间", update_time)
 col_c.metric("覆盖城市", f"{city_count} 个")
 
@@ -240,7 +197,6 @@ col_c.metric("覆盖城市", f"{city_count} 个")
 # ==============================
 st.subheader("🏆 城市AQI排名")
 
-# 确保有 aqi 列
 if 'aqi' not in df.columns:
     st.error("数据中缺少 'aqi' 列，无法排序。")
     st.stop()
@@ -291,12 +247,12 @@ for _, row in df_map.iterrows():
         lat = float(row.get('lat', 0))
         lon = float(row.get('lon', 0))
 
-        # 如果 Excel 中没有经纬度，从字典补充
+        # 如果数据中没有经纬度，从字典补充
         if lat == 0.0 and lon == 0.0 and city in CITY_COORDS:
             lat, lon = CITY_COORDS[city]
 
         if lat == 0.0 and lon == 0.0:
-            continue  # 跳过没有坐标的城市
+            continue
     except (ValueError, TypeError):
         continue
 

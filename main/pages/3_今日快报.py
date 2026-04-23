@@ -21,6 +21,7 @@ import plotly.graph_objects as go
 
 # 确保可以导入 utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.realtime_aqi import fetch_realtime_aqi
 from utils.excel_parser import get_latest_aqi_snapshot
 
 st.set_page_config(
@@ -140,18 +141,37 @@ st.markdown("---")
 
 
 # ==============================
-# 加载数据（带缓存 + 刷新按钮）
+# 加载数据 — 优先实时 API，fallback 到 Excel
 # ==============================
 @st.cache_data(ttl=600)
-def _load_data():
-    """加载爬虫最新批次数据。"""
+def _load_excel_fallback():
+    """加载爬虫 Excel 数据（fallback）"""
     return get_latest_aqi_snapshot()
 
 if st.button("🔄 刷新数据"):
     st.cache_data.clear()
     st.rerun()
 
-df, run_dir, debug_info = _load_data()
+with st.spinner("📡 正在获取最新空气质量数据..."):
+    df, update_time, debug_info = fetch_realtime_aqi(cache_ttl=600)
+    data_source_label = "实时 API（中国天气网）"
+
+    if df.empty:
+        st.info("实时 API 暂不可用，正在加载本地缓存数据...")
+        df, run_dir, debug_info = _load_excel_fallback()
+        data_source_label = "本地缓存数据"
+        update_time = '未知'
+
+        if not df.empty:
+            for col_name in ['datetime', 'update_time', '数据时间']:
+                if col_name in df.columns:
+                    try:
+                        latest_dt = pd.to_datetime(df[col_name]).max()
+                        if pd.notna(latest_dt):
+                            update_time = latest_dt.strftime('%Y-%m-%d %H:%M')
+                    except Exception:
+                        pass
+                    break
 
 
 
@@ -182,33 +202,14 @@ city_count = len(df_valid)
 # ==============================
 # 解析更新时间
 # ==============================
-update_time = '未知'
-time_col = None
-for col_name in ['datetime', 'update_time', '数据时间']:
-    if col_name in df_valid.columns:
-        time_col = col_name
-        break
-
-if time_col:
-    try:
-        latest_dt = pd.to_datetime(df_valid[time_col]).max()
-        if pd.notna(latest_dt):
-            update_time = latest_dt.strftime('%Y-%m-%d %H:%M')
-    except Exception:
-        pass
-
-if update_time == '未知' and run_dir:
-    batch_name = os.path.basename(run_dir)
-    m = re.match(r'(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})', batch_name)
-    if m:
-        update_time = f"{m.group(1)}-{m.group(2)}-{m.group(3)} {m.group(4)}:{m.group(5)}"
+# update_time 已在上方数据加载时设置
 
 
 # ==============================
 # 一、数据来源 & 关键指标
 # ==============================
 st.subheader("📡 数据概览")
-st.markdown(f"数据来源：**中国天气网**（weather.com.cn） | 更新时间：**{update_time}** | 覆盖城市：**{city_count}** 个")
+st.markdown(f"数据来源：**{data_source_label}** | 更新时间：**{update_time}** | 覆盖城市：**{city_count}** 个")
 
 avg_aqi = df_valid['aqi'].mean()
 best_row = df_valid.loc[df_valid['aqi'].idxmin()]
