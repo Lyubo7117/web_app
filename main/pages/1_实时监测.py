@@ -347,16 +347,18 @@ try:
 except Exception:
     pass
 
-# AQI 圆点标记
+# AQI 圆点标记 — 优先用 CITY_COORDS 字典坐标（确保所有省会都能显示）
 for _, row in df_map.iterrows():
     try:
-        city = str(row.get('city_name', ''))
+        city = str(row.get('city_name', '')).replace('市', '')
         aqi_val = float(row.get('aqi', 0))
-        lat = float(row.get('lat', 0))
-        lon = float(row.get('lon', 0))
-
-        if lat == 0.0 and lon == 0.0 and city in CITY_COORDS:
+        
+        # 优先从字典取坐标（确保所有省会城市都有标记）
+        if city in CITY_COORDS:
             lat, lon = CITY_COORDS[city]
+        else:
+            lat = float(row.get('lat', 0))
+            lon = float(row.get('lon', 0))
 
         if lat == 0.0 and lon == 0.0:
             continue
