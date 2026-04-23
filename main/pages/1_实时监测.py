@@ -137,6 +137,15 @@ st.markdown("""
         padding: 12px 14px;
         line-height: 1.9;
     }
+    /* 地图容器：消除右侧和下方多余留白 */
+    div[data-testid="stFolium"] {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stFolium"] > iframe {
+        display: block;
+        margin: 0 auto;
+    }
     .aqi-legend-float b {
         display: block;
         margin-bottom: 4px;
@@ -423,7 +432,7 @@ for _, row in df_map.iterrows():
     ).add_to(m)
 
 folium.LayerControl().add_to(m)
-st_folium(m, width=1100, height=550)
+st_folium(m, use_container_width=True, height=480)
 
 # ==============================
 # 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
