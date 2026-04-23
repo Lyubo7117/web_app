@@ -8,7 +8,7 @@ import streamlit as st
 
 # ==================== 页面全局配置 ====================
 st.set_page_config(
-    page_title="中国省会城市空气质量洞察",
+    page_title="首页",
     page_icon="🌏",
     layout="wide",
     initial_sidebar_state="collapsed"

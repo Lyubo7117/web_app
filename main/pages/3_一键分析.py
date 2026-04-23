@@ -23,6 +23,13 @@ import plotly.graph_objects as go
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.excel_parser import get_latest_aqi_snapshot
 
+st.set_page_config(
+    page_title="今日快报",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 
 # ==============================
 # 蓝色主题 CSS
