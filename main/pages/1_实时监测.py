@@ -137,20 +137,20 @@ st.markdown("""
         padding: 12px 14px;
         line-height: 1.9;
     }
-    /* 地图容器：消除多余留白 */
+    /* 地图容器：精确高度550px，裁剪底部白色溢出 */
     div[data-testid="stFolium"] {
         padding: 0 !important;
         margin: 0 !important;
+        height: 550px !important;
+        max-height: 550px !important;
+        overflow: hidden !important;
         background: transparent !important;
+        border-radius: 8px;
     }
     div[data-testid="stFolium"] > iframe {
         display: block;
+        height: 550px !important;
         border-radius: 8px;
-    }
-    /* 强制 leaflet 地图填满 iframe，消除内部底部空白 */
-    .leaflet-container {
-        min-height: 100% !important;
-        height: auto !important;
     }
     .aqi-legend-float b {
         display: block;
@@ -399,9 +399,9 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
             if pd.notna(row.get('lat')) and pd.notna(row.get('lon'))
             and float(row.get('lat', 0)) != 0 and float(row.get('lon', 0)) != 0]
 if all_locs:
-    m.fit_bounds(all_locs, padding=(40, 40))
+    m.fit_bounds(all_locs, padding=(10, 10))
 
-st_folium(m, use_container_width=True, height=380)
+st_folium(m, use_container_width=True, height=550)
 
 # ==============================
 # 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
