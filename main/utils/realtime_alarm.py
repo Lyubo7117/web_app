@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-轻量级实时气象预警数据获取模块
-直接调用中央气象台 API，不走 Excel，返回 pandas DataFrame。
+实时气象预警数据获取模块（双数据源）
 
-供 Streamlit 应用在页面加载时调用，确保数据实时。
-失败时自动 fallback 到本地 Excel 数据。
+数据源：
+1. 中央气象台 API（nmc.cn）— 国内环境，实时中国预警
+2. 无海外替代源 — 海外环境 gracefully fallback 到 Excel 缓存
+
+自动检测：如果中央气象台不可达（如 Streamlit Cloud 海外服务器），自动 fallback。
 """
 
 import requests
@@ -20,7 +22,7 @@ warnings.filterwarnings('ignore')
 
 
 # ═══════════════════════════════════════════════
-# 辅助函数（从 weather_alarm_crawler.py 提取核心逻辑）
+# 辅助函数
 # ═══════════════════════════════════════════════
 
 def _extract_level(title):
@@ -90,7 +92,7 @@ def _extract_location(title):
 
 
 # ═══════════════════════════════════════════════
-# API 请求
+# 数据源1: 中央气象台 API
 # ═══════════════════════════════════════════════
 
 def _fetch_alarm_page(page=1, page_size=50, timeout=20):
@@ -120,9 +122,72 @@ def _fetch_alarm_page(page=1, page_size=50, timeout=20):
     return json.loads(text)
 
 
+def _fetch_all_nmc_alarms():
+    """从中央气象台获取全部实时预警"""
+    debug = []
+    all_records = []
+    start = time.time()
+    page = 1
+    max_pages = 10
+
+    while page <= max_pages:
+        try:
+            api_data = _fetch_alarm_page(page=page, page_size=50)
+            try:
+                page_list = api_data["data"]["page"]["list"]
+            except (KeyError, TypeError):
+                break
+
+            if not page_list:
+                break
+
+            for item in page_list:
+                title = item.get("title", "")
+                if not title:
+                    continue
+                province, city = _extract_location(title)
+                all_records.append({
+                    "省份": province,
+                    "城市": city,
+                    "预警类型": _extract_type(title),
+                    "预警等级": _extract_level(title),
+                    "发布时间": item.get("issuetime", ""),
+                    "预警标题": title,
+                })
+
+            # 检查是否还有下一页
+            try:
+                total = api_data["data"]["page"]["totalPage"]
+                if page >= total:
+                    break
+            except (KeyError, TypeError):
+                pass
+
+            page += 1
+            time.sleep(0.3)
+
+        except requests.exceptions.Timeout:
+            debug.append(f"[WARN] 第 {page} 页请求超时")
+            page += 1
+            time.sleep(1)
+        except Exception as e:
+            debug.append(f"[ERROR] 第 {page} 页获取失败：{type(e).__name__}")
+            break
+
+    elapsed = round(time.time() - start, 1)
+    debug.insert(0, f"[中央气象台] 获取 {len(all_records)} 条预警，耗时 {elapsed}s")
+    return all_records, debug
+
+
+# ═══════════════════════════════════════════════
+# 主入口
+# ═══════════════════════════════════════════════
+
 def fetch_realtime_alarms(cache_ttl=600):
     """
-    获取全国最新气象预警数据（爬取所有页）。
+    获取全国最新气象预警数据。
+
+    策略：尝试中央气象台 API，海外不可达时返回空 DataFrame（由页面 fallback 到 Excel）。
 
     Parameters
     ----------
@@ -137,63 +202,25 @@ def fetch_realtime_alarms(cache_ttl=600):
     """
     import streamlit as st
 
-    @st.cache_data(ttl=cache_ttl)
-    def _do_fetch():
+    @st.cache_data(ttl=cache_ttl, show_spinner=False)
+    def _do_fetch(_version="v2_nmc_with_version"):  # 改版本号可强制刷新缓存
         debug = []
-        all_records = []
-        start = time.time()
-        page = 1
-        max_pages = 10
 
-        while page <= max_pages:
-            try:
-                api_data = _fetch_alarm_page(page=page, page_size=50)
-                try:
-                    page_list = api_data["data"]["page"]["list"]
-                except (KeyError, TypeError):
-                    break
+        try:
+            records, nmc_debug = _fetch_all_nmc_alarms()
+            debug.extend(nmc_debug)
 
-                if not page_list:
-                    break
+            if records:
+                df = pd.DataFrame(records)
+                fetch_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                debug.append("[路由] 使用数据源: 中央气象台")
+                return df, fetch_time, debug
 
-                for item in page_list:
-                    title = item.get("title", "")
-                    if not title:
-                        continue
-                    province, city = _extract_location(title)
-                    all_records.append({
-                        "省份": province,
-                        "城市": city,
-                        "预警类型": _extract_type(title),
-                        "预警等级": _extract_level(title),
-                        "发布时间": item.get("issuetime", ""),
-                        "预警标题": title,
-                    })
+        except Exception as e:
+            debug.append(f"[ERROR] 中央气象台不可达：{type(e).__name__}: {str(e)[:80]}")
 
-                # 检查是否还有下一页
-                try:
-                    total = api_data["data"]["page"]["totalPage"]
-                    if page >= total:
-                        break
-                except (KeyError, TypeError):
-                    pass
-
-                page += 1
-                time.sleep(0.3)
-
-            except requests.exceptions.Timeout:
-                debug.append(f"[WARN] 第 {page} 页请求超时")
-                page += 1
-                time.sleep(1)
-            except Exception as e:
-                debug.append(f"[ERROR] 第 {page} 页获取失败：{type(e).__name__}")
-                break
-
-        elapsed = round(time.time() - start, 1)
-        debug.insert(0, f"[实时API] 获取 {len(all_records)} 条预警，耗时 {elapsed}s")
-
-        df = pd.DataFrame(all_records)
-        fetch_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-        return df, fetch_time, debug
+        # 海外环境：返回空 DataFrame，由页面 fallback 到 Excel
+        debug.append("[路由] 中央气象台不可达（海外环境），返回空数据")
+        return pd.DataFrame(), "", debug
 
     return _do_fetch()
