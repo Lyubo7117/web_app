@@ -1,11 +1,13 @@
+# -*- coding: utf-8 -*-
 """
 1_实时监测.py
 Streamlit 多页面应用 - 实时监测页面
 
 功能：
-- 优先调用实时 API 获取最新 AQI 数据，失败时 fallback 到本地 Excel
+- 优先调用实时 API 获取最新 AQI 数据（双数据源自动切换）
 - 展示最新 AQI 排名（最佳/最差 Top 10）
-- folium 全国污染热力分布地图
+- folium 全国污染热力分布地图（高德中文底图 + 九段线）
+- 右下角 AQI 图例（独立浮动层）
 - 手动刷新按钮
 """
 
@@ -20,9 +22,9 @@ import urllib.request
 
 # 确保可以导入 utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils.realtime_aqi import fetch_realtime_aqi
-from utils.excel_parser import get_latest_aqi_snapshot
-from utils.city_coords import CITY_COORDS
+from utils.realtime_aqi import fetch_realtime_aqi          # [修1] 实时数据源
+from utils.excel_parser import get_latest_aqi_snapshot       # [修2] 正确的函数名（非 get_latest_snapshot）
+from utils.city_coords import CITY_COORDS                    # [修3] 城市坐标字典（非 get_city_coords）
 
 
 # ==============================
@@ -42,6 +44,7 @@ with st.sidebar:
     if st.button("📈 历史分析", key="sidebar_history", use_container_width=True):
         st.switch_page("pages/2_历史分析.py")
 
+
 # ==============================
 # 蓝色主题 CSS
 # ==============================
@@ -53,7 +56,7 @@ st.markdown("""
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, #1a365d 0%, #0f2440 100%);
     }
-    /* 隐藏原生侧边栏导航（文件名显示） */
+    /* 隐藏原生侧边栏导航 */
     [data-testid="stSidebarNav"] {
         display: none !important;
     }
@@ -107,19 +110,8 @@ st.markdown("""
         border-left: 4px solid #2b6cb0;
     }
     /* 表格和文字居中 */
-    div[data-testid="stMetric"] {
-        text-align: center;
-    }
-    div[data-testid="stMetric"] label {
-        text-align: center;
-    }
-    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-        text-align: center;
-    }
-    div[data-testid="stDataFrame"] {
-        margin-left: auto;
-        margin-right: auto;
-    }
+    div[data-testid="stMetric"] { text-align: center; }
+    div[data-testid="stDataFrame"] { margin-left: auto; margin-right: auto; }
     div[data-testid="stDataFrame"] td,
     div[data-testid="stDataFrame"] th {
         text-align: center !important;
@@ -127,34 +119,68 @@ st.markdown("""
     .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
         text-align: center;
     }
-    h1, h2, h3, h4 {
-        text-align: center !important;
+    h1, h2, h3, h4 { text-align: center !important; }
+    p, .stMarkdown p { text-align: center; }
+
+    /* 图例浮动层样式 */
+    .aqi-legend-float {
+        position: fixed !important;
+        bottom: 100px !important;   /* 上移到可见区域 */
+        right: 28px !important;
+        width: 195px;
+        border: 2px solid #1a365d;
+        z-index: 99999 !important;
+        font-size: 13px;
+        background-color: rgba(255,255,255,0.94);
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        padding: 12px 14px;
+        line-height: 1.9;
     }
-    p, .stMarkdown p {
-        text-align: center;
+    .aqi-legend-float b {
+        display: block;
+        margin-bottom: 4px;
+        color: #1a365d;
+        font-size: 14px;
+    }
+    .aqi-legend-float .lg-item i {
+        display: inline-block;
+        width: 20px; height: 14px;
+        border-radius: 3px;
+        margin-right: 6px;
+        vertical-align: middle;
+        border: 1px solid rgba(0,0,0,0.15);
     }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ==============================
-# AQI 等级颜色映射（6 级国标）
+# AQI 等级颜色映射
 # ==============================
 def aqi_color(value):
-    if value <= 50:    return '#00e400'
-    elif value <= 100: return '#ffff00'
-    elif value <= 150: return '#ff7e00'
-    elif value <= 200: return '#ff0000'
-    elif value <= 300: return '#99004c'
+    try:
+        v = float(value)
+    except (ValueError, TypeError):
+        return '#cccccc'
+    if v <= 50:    return '#00e400'
+    elif v <= 100: return '#ffff00'
+    elif v <= 150: return '#ff7e00'
+    elif v <= 200: return '#ff0000'
+    elif v <= 300: return '#99004c'
     else:              return '#7e0023'
 
 
 def aqi_level_text(value):
-    if value <= 50:    return '优'
-    elif value <= 100: return '良'
-    elif value <= 150: return '轻度污染'
-    elif value <= 200: return '中度污染'
-    elif value <= 300: return '重度污染'
+    try:
+        v = float(value)
+    except (ValueError, TypeError):
+        return "—"
+    if v <= 50:    return '优'
+    elif v <= 100: return '良'
+    elif v <= 150: return '轻度污染'
+    elif v <= 200: return '中度污染'
+    elif v <= 300: return '重度污染'
     else:              return '严重污染'
 
 
@@ -177,7 +203,6 @@ if st.button("🔄 手动刷新数据"):
 def _load_excel_fallback():
     """加载爬虫 Excel 数据（fallback）"""
     return get_latest_aqi_snapshot()
-
 
 # 优先使用实时 API（双数据源自动切换）
 with st.spinner("📡 正在获取最新空气质量数据..."):
@@ -210,18 +235,12 @@ with st.spinner("📡 正在获取最新空气质量数据..."):
 
 city_count = len(df)
 
-
-# ==============================
 # 空数据判断
-# ==============================
 if df.empty:
     st.warning("暂无实时数据，请稍后重试...")
     st.stop()
 
-
-# ==============================
 # 数据信息栏
-# ==============================
 st.markdown("#### 📡 数据信息")
 col_a, col_b, col_c = st.columns(3)
 col_a.metric("数据来源", data_source_label)
@@ -238,7 +257,7 @@ if 'aqi' not in df.columns:
     st.error("数据中缺少 'aqi' 列，无法排序。")
     st.stop()
 
-# 只对有有效数据的城市排序（无数据显示"暂无"，不参与排名）
+# 只对有有效数据的城市排序
 df_valid = df[df['aqi'].notna() & (df['aqi'] > 0)].copy()
 df_sorted = df_valid.sort_values('aqi', ascending=False)
 
@@ -246,14 +265,11 @@ left_col, right_col = st.columns(2)
 
 with left_col:
     st.markdown("#### 🟢 空气最佳 Top 10")
-    if len(df_sorted) >= 10:
-        best = df_sorted.tail(10).iloc[::-1]
-    else:
-        best = df_sorted.iloc[::-1]  # 数据不足10条时全部显示
+    best = df_sorted.tail(10).iloc[::-1] if len(df_sorted) >= 10 else df_sorted.iloc[::-1]
+    # [修4] 使用正确的列名 city_name（非 city）
     display_cols = [c for c in ['city_name', 'aqi', 'level', 'dominant_pollutant'] if c in best.columns]
     col_labels = ['城市', 'AQI', '等级', '首要污染物'][:len(display_cols)]
     best_display = best[display_cols].copy()
-    # 格式化 AQI 为整数
     if 'aqi' in best_display.columns:
         best_display['aqi'] = best_display['aqi'].apply(lambda x: int(x) if pd.notna(x) else '—')
     best_display.columns = col_labels
@@ -263,10 +279,7 @@ with left_col:
 
 with right_col:
     st.markdown("#### 🔴 空气最差 Top 10")
-    if len(df_sorted) >= 10:
-        worst = df_sorted.head(10)
-    else:
-        worst = df_sorted
+    worst = df_sorted.head(10) if len(df_sorted) >= 10 else df_sorted
     display_cols = [c for c in ['city_name', 'aqi', 'level', 'dominant_pollutant'] if c in worst.columns]
     col_labels = ['城市', 'AQI', '等级', '首要污染物'][:len(display_cols)]
     worst_display = worst[display_cols].copy()
@@ -279,20 +292,17 @@ with right_col:
 
 
 # ==============================
-# 加载中国边界 GeoJSON（缓存，避免重复下载）
+# 加载 GeoJSON（国界线 + 十段线）
 # ==============================
 @st.cache_data(ttl=86400, show_spinner=False)
 def _load_china_boundary():
-    """加载中国国界线 GeoJSON（DataV）"""
     url = 'https://geo.datav.aliyun.com/areas_v3/bound/100000.json'
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     resp = urllib.request.urlopen(req, timeout=15)
     return json.loads(resp.read().decode('utf-8'))
 
-
 @st.cache_data(ttl=86400, show_spinner=False)
 def _load_ten_dash_line():
-    """加载十段线 GeoJSON（从 GMT 格式解析）"""
     url = 'https://raw.githubusercontent.com/gmt-china/china-geospatial-data/master/ten-dash-line.gmt'
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     resp = urllib.request.urlopen(req, timeout=15)
@@ -340,24 +350,23 @@ if df_map.empty:
     st.warning("暂无有效的AQI数据，无法生成热力图")
     st.stop()
 
-m = folium.Map(location=[35, 105], zoom_start=4,
-              tiles=None, control_scale=True)
+# [修5] tiles=None 后用 TileLayer 添加高德底图（不能直接传 URL 给 tiles 参数）
+m = folium.Map(location=[35, 105], zoom_start=4, tiles=None, control_scale=True)
 
-# 高德中文瓦片作为默认底图（第一个添加的 base layer 自动激活）
 amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
 folium.TileLayer(
     tiles=amap_url, attr='&copy; 高德地图', name='高德地图（中文）',
     subdomains='1234', max_zoom=18, overlay=False, control=True, show=True
 ).add_to(m)
 
-# 备用底图：CartoDB（海外稳定 fallback）
-cartodb_url = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+# 备用底图 CartoDB
+cartodb_url = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}{y}{r}.png'
 folium.TileLayer(
     tiles=cartodb_url, attr='&copy; CartoDB', name='CartoDB（英文）',
     max_zoom=18, overlay=False, control=True, show=False
 ).add_to(m)
 
-# 中国国界线（含南海诸岛）— 默认开启
+# 中国国界线
 try:
     boundary_data = _load_china_boundary()
     folium.GeoJson(
@@ -365,21 +374,19 @@ try:
         style_function=lambda x: {
             'fillColor': 'transparent', 'color': '#666666',
             'weight': 1.2, 'fillOpacity': 0,
-        },
-        show=True
+        }, show=True
     ).add_to(m)
 except Exception:
     pass
 
-# 十段线 — 默认关闭（可手动勾选）
+# 南海十段线（默认关闭）
 try:
     dash_data = _load_ten_dash_line()
     folium.GeoJson(
         dash_data, name='十段线',
         style_function=lambda x: {
             'color': '#666666', 'weight': 2, 'dashArray': '6, 4',
-        },
-        show=False
+        }, show=False
     ).add_to(m)
 except Exception:
     pass
@@ -387,6 +394,7 @@ except Exception:
 # AQI 圆点标记
 for _, row in df_map.iterrows():
     try:
+        # [修4] 正确列名 city_name
         city = str(row.get('city_name', ''))
         aqi_val = float(row.get('aqi', 0))
         lat = float(row.get('lat', 0))
@@ -415,41 +423,12 @@ for _, row in df_map.iterrows():
     ).add_to(m)
 
 folium.LayerControl().add_to(m)
-
 st_folium(m, width=1100, height=550)
 
-# 右下角 AQI 等级图例 — 用独立 st.markdown 注入，确保在底图右下角可见
+# ==============================
+# 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
+# ==============================
 st.markdown("""
-<style>
-.aqi-legend-float {
-    position: fixed;
-    bottom: 100px !important;
-    right: 28px !important;
-    width: 195px;
-    border: 2px solid #1a365d;
-    z-index: 99999 !important;
-    font-size: 13px;
-    background-color: rgba(255,255,255,0.94);
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    padding: 12px 14px;
-    line-height: 1.9;
-}
-.aqi-legend-float b {
-    display: block;
-    margin-bottom: 4px;
-    color: #1a365d;
-    font-size: 14px;
-}
-.aqi-legend-float .lg-item i {
-    display: inline-block;
-    width: 20px; height: 14px;
-    border-radius: 3px;
-    margin-right: 6px;
-    vertical-align: middle;
-    border: 1px solid rgba(0,0,0,0.15);
-}
-</style>
 <div class="aqi-legend-float">
 <b>📊 空气质量等级 (AQI)</b>
 <div class="lg-item"><i style="background:#00e400;"></i> 优 (0–50)</div>
