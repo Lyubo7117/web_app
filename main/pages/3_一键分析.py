@@ -235,7 +235,7 @@ if pollutant_col:
 
         st.plotly_chart(fig_bar, use_container_width=True)
     else:
-        st.info("当前所有城市空气质量均达到"优"等级，无首要污染物。")
+        st.info('当前所有城市空气质量均达到"优"等级，无首要污染物。')
 else:
     st.info("数据中未找到首要污染物列，无法生成统计图。")
 

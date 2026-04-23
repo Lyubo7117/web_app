@@ -232,11 +232,12 @@ for _, row in df_map.iterrows():
         fill=True,
         fill_color=color,
         fill_opacity=0.6,
+        aqi_display = int(aqi_val) if pd.notna(aqi_val) else 'N/A'
         popup=folium.Popup(
-            f"<b>{city}</b><br>AQI: {int(aqi_val)} ({level})",
+            f"<b>{city}</b><br>AQI: {aqi_display} ({level})",
             max_width=200
         ),
-        tooltip=f"{city}: AQI {int(aqi_val)}",
+        tooltip=f"{city}: AQI {aqi_display}",
     ).add_to(m)
 
 st_folium(m, width=1100, height=550)
