@@ -397,7 +397,7 @@ def fetch_realtime_alarms(cache_ttl=600):
     import streamlit as st
 
     @st.cache_data(ttl=cache_ttl, show_spinner=False)
-    def _do_fetch(_version="v3_strong_city_extract"):
+    def _do_fetch(_version="v4_city_suffix_normalize"):
         debug = []
 
         try:
