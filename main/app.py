@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 自定义 CSS：高斯模糊背景、强制居中、等宽卡片 ====================
+# ==================== 自定义 CSS ====================
 st.markdown("""
 <style>
     /* 完全隐藏侧边栏 */
@@ -30,7 +30,6 @@ st.markdown("""
         background-attachment: fixed;
     }
 
-    /* 添加高斯模糊层（伪元素） */
     .stApp::before {
         content: "";
         position: fixed;
@@ -43,7 +42,7 @@ st.markdown("""
         z-index: -1;
     }
 
-    /* 主内容区域：半透明白色背景，居中，圆角 */
+    /* 主内容区域 */
     .main > div {
         background-color: rgba(255, 255, 255, 0.85);
         border-radius: 30px;
@@ -54,7 +53,6 @@ st.markdown("""
         text-align: center;
     }
 
-    /* 所有标题居中 */
     h1, h2, h3 {
         color: #0a2540 !important;
         font-weight: 700 !important;
@@ -65,9 +63,13 @@ st.markdown("""
     div[data-testid="column"] {
         flex: 1 1 0% !important;
         min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
     }
 
-    /* 卡片链接按钮样式：填满列宽，文字居中 */
+    /* 卡片链接按钮样式：固定宽度、居中、填满 */
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] a {
         display: flex;
         flex-direction: column;
@@ -87,6 +89,7 @@ st.markdown("""
         transition: all 0.3s ease;
         box-sizing: border-box;
         text-align: center;
+        margin-bottom: 8px;
     }
 
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] a:hover {
@@ -96,33 +99,24 @@ st.markdown("""
         border-color: #2b6cb0;
     }
 
-    /* 卡片内描述文字（居中） */
+    /* 卡片描述文字：与按钮同宽、居中 */
     .card-desc {
+        width: 100%;
         font-size: 0.9rem;
         color: #2d3748;
-        margin-top: 8px;
         font-weight: 400;
         text-align: center;
-        width: 100%;
+        margin-top: 4px;
+        padding: 0 4px;
+        box-sizing: border-box;
     }
 
-    /* 底部信息居中 */
+    /* 底部信息 */
     .footer {
         text-align: center;
         margin-top: 3rem;
         color: #1a365d;
         font-weight: 500;
-    }
-
-    /* 欢迎卡片内部文字强制居中 */
-    .welcome-card {
-        text-align: center;
-        margin: 20px 0;
-    }
-    .welcome-card p {
-        text-align: center !important;
-        margin-left: auto;
-        margin-right: auto;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -148,7 +142,6 @@ st.markdown("---")
 # ==================== 功能模块 ====================
 st.subheader("📌 功能模块")
 
-# 使用四列等宽（通过 CSS 已强制等宽）
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -167,7 +160,6 @@ with col4:
     st.page_link("pages/4_气象预警.py", label="🚨 气象预警", help="全国预警实时监测")
     st.markdown("<div class='card-desc'>预警总数 · 等级分类 · 按省份筛选</div>", unsafe_allow_html=True)
 
-# ==================== 底部制作人信息 ====================
 st.markdown("---")
 st.markdown("""
 <div class="footer">
