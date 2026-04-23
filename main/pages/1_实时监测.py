@@ -148,10 +148,16 @@ def _load_excel_fallback():
     return get_latest_aqi_snapshot()
 
 
-# 优先使用实时 API
+# 优先使用实时 API（双数据源自动切换）
 with st.spinner("📡 正在获取最新空气质量数据..."):
-    df, update_time, debug_info = fetch_realtime_aqi(cache_ttl=600)
-    data_source_label = "实时 API（中国天气网）"
+    df, update_time, debug_info, data_source = fetch_realtime_aqi(cache_ttl=600)
+
+    if data_source == "中国天气网":
+        data_source_label = "中国天气网（实时）"
+    elif data_source == "Open-Meteo":
+        data_source_label = "Open-Meteo（US EPA 标准）"
+    else:
+        data_source_label = "未知"
 
     # 实时 API 失败时 fallback 到 Excel
     if df.empty:
