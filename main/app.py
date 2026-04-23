@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 自定义 CSS：高斯模糊背景、居中、卡片样式 ====================
+# ==================== 自定义 CSS：高斯模糊背景、强制居中、等宽卡片 ====================
 st.markdown("""
 <style>
     /* 完全隐藏侧边栏 */
@@ -54,20 +54,30 @@ st.markdown("""
         text-align: center;
     }
 
-    /* 标题样式 */
+    /* 所有标题居中 */
     h1, h2, h3 {
         color: #0a2540 !important;
         font-weight: 700 !important;
         text-align: center !important;
     }
 
-    /* 卡片容器：链接按钮样式 */
+    /* 强制列等宽 */
+    div[data-testid="column"] {
+        flex: 1 1 0% !important;
+        min-width: 0;
+    }
+
+    /* 卡片链接按钮样式：填满列宽，文字居中 */
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] a {
-        display: block;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        min-height: 120px;
         background: linear-gradient(145deg, #ffffff 0%, #eef6ff 100%);
         border-radius: 24px;
-        padding: 2rem 0.5rem;
-        text-align: center;
+        padding: 1.5rem 0.5rem;
         text-decoration: none;
         color: #1a365d !important;
         font-weight: 600;
@@ -75,6 +85,8 @@ st.markdown("""
         border: 1px solid #b8d4f0;
         box-shadow: 0 8px 16px rgba(0, 40, 80, 0.1);
         transition: all 0.3s ease;
+        box-sizing: border-box;
+        text-align: center;
     }
 
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] a:hover {
@@ -84,13 +96,14 @@ st.markdown("""
         border-color: #2b6cb0;
     }
 
-    /* 卡片内描述文字 */
+    /* 卡片内描述文字（居中） */
     .card-desc {
         font-size: 0.9rem;
         color: #2d3748;
         margin-top: 8px;
         font-weight: 400;
         text-align: center;
+        width: 100%;
     }
 
     /* 底部信息居中 */
@@ -101,9 +114,15 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* 欢迎卡片内部文字居中 */
+    /* 欢迎卡片内部文字强制居中 */
     .welcome-card {
         text-align: center;
+        margin: 20px 0;
+    }
+    .welcome-card p {
+        text-align: center !important;
+        margin-left: auto;
+        margin-right: auto;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -114,11 +133,11 @@ st.title("🌏 中国省会城市空气质量实时监测与历史分析")
 # 欢迎卡片
 st.markdown("""
 <div style="background: rgba(255,255,255,0.6); border-radius: 24px; padding: 24px 36px; margin: 20px 0; backdrop-filter: blur(4px);">
-    <h2 style="margin:0 0 12px 0; color:#0a2540;">👋 欢迎使用空气质量洞察平台</h2>
-    <p style="font-size:1.15rem; margin:0; color:#1a365d;">
+    <h2 style="margin:0 0 12px 0; color:#0a2540; text-align:center;">👋 欢迎使用空气质量洞察平台</h2>
+    <p style="font-size:1.15rem; margin:0 auto 10px auto; color:#1a365d; text-align:center;">
         实时监测全国31个省会及直辖市的空气质量，提供历史趋势分析与气象预警服务。
     </p>
-    <p style="margin-top:10px; color:#2c5282; font-weight:500;">
+    <p style="margin-top:10px; color:#2c5282; font-weight:500; text-align:center;">
         👨‍💻 制作人：刘宇博 · 江毅 · 张睿 ｜ 大数据与人工智能导论课程项目
     </p>
 </div>
@@ -129,6 +148,7 @@ st.markdown("---")
 # ==================== 功能模块 ====================
 st.subheader("📌 功能模块")
 
+# 使用四列等宽（通过 CSS 已强制等宽）
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
