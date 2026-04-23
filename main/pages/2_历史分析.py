@@ -73,6 +73,10 @@ st.markdown("""
     div[data-testid="stMetric"] {
         text-align: center;
     }
+    div[data-testid="stDataFrame"] td,
+    div[data-testid="stDataFrame"] th {
+        text-align: center !important;
+    }
     .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
         text-align: center;
     }

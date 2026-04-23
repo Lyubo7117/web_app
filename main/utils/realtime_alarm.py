@@ -14,7 +14,7 @@ import json
 import re
 import time
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -212,7 +212,9 @@ def fetch_realtime_alarms(cache_ttl=600):
 
             if records:
                 df = pd.DataFrame(records)
-                fetch_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+                # 转北京时间（Streamlit Cloud 在 UTC 时区）
+                now_beijing = datetime.now(timezone(timedelta(hours=8)))
+                fetch_time = now_beijing.strftime("%Y-%m-%d %H:%M")
                 debug.append("[路由] 使用数据源: 中央气象台")
                 return df, fetch_time, debug
 

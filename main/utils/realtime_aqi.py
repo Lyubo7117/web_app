@@ -14,7 +14,7 @@ import json
 import re
 import time
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
@@ -120,7 +120,7 @@ def _fetch_weathercom_city(city_info, timeout=10):
 
         latest = records[-1]
 
-        def safe(key, default=0):
+        def safe(key, default=None):
             v = latest.get(key, "")
             if v == "" or v is None:
                 return default
@@ -133,12 +133,20 @@ def _fetch_weathercom_city(city_info, timeout=10):
             vals = {
                 "PM2.5": safe("t3"), "PM10": safe("t4"),
                 "O3": safe("t7"), "NO2": safe("t6"),
-                "SO2": safe("t9"), "CO": safe("t5") * 10,
+                "SO2": safe("t9"), "CO": safe("t5"),
             }
-            mx = max(vals, key=vals.get)
-            return mx if vals[mx] > 0 else "—"
+            # 过滤 None 和 0
+            valid = {k: v for k, v in vals.items() if v is not None and v > 0}
+            if not valid:
+                return "—"
+            mx = max(valid, key=valid.get)
+            return mx
 
         aqi_val = safe("t1")
+
+        # AQI 为 0 或 None 视为无效数据
+        if aqi_val is None or aqi_val <= 0:
+            return None
 
         return {
             "city_name": city_info["name"],
@@ -158,7 +166,7 @@ def _fetch_weathercom_city(city_info, timeout=10):
             "dominant_pollutant": dominant(),
             "lat": city_info["lat"],
             "lon": city_info["lon"],
-            "datetime": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "datetime": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M"),
         }
     except Exception:
         return None
@@ -209,6 +217,10 @@ def _fetch_openmeteo_city(city_info, timeout=15):
 
         c = data["current"]
         aqi_val = c.get("us_aqi")
+
+        # AQI 为 None 或 <= 0 视为无效数据
+        if aqi_val is None or (isinstance(aqi_val, (int, float)) and aqi_val <= 0):
+            return None
 
         # 首要污染物判定（基于 US EPA IAQI）
         pollutants = {

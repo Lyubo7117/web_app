@@ -107,6 +107,10 @@ st.markdown("""
         margin-left: auto;
         margin-right: auto;
     }
+    div[data-testid="stDataFrame"] td,
+    div[data-testid="stDataFrame"] th {
+        text-align: center !important;
+    }
     .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
         text-align: center;
     }
@@ -175,14 +179,38 @@ _en_to_zh = {
 }
 df = df.rename(columns={k: v for k, v in _en_to_zh.items() if k in df.columns})
 
-# 标准中文列名
-DISPLAY_COLUMNS = ['省份', '城市', '预警类型', '预警等级', '发布时间', '解除时间']
+# 标准中文列名（兼容有无「解除时间」的情况）
+_DISPLAY_ALL = ['省份', '城市', '预警类型', '预警等级', '发布时间', '预警标题']
+_DISPLAY_WITH_CANCEL = ['省份', '城市', '预警类型', '预警等级', '发布时间', '解除时间']
+
+# 动态选择可用的列
+if '解除时间' in df.columns:
+    display_columns = [c for c in _DISPLAY_WITH_CANCEL if c in df.columns]
+else:
+    display_columns = [c for c in _DISPLAY_ALL if c in df.columns]
 
 
 # ==============================
-# 数据更新时间 & 来源
+# 数据更新时间 & 来源（转为北京时间）
 # ==============================
-st.markdown(f"**📡 数据来源：** {data_source_label}  |  **更新时间：** {update_time}")
+from datetime import timedelta, timezone
+def _to_beijing(time_str):
+    """将时间字符串转为北京时间显示"""
+    if not time_str or time_str == '':
+        return ''
+    try:
+        # 尝试解析常见格式
+        dt = pd.to_datetime(str(time_str).strip())
+        # 如果是 naive datetime，假设为 UTC 并加8
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        beijing = dt.astimezone(timezone(timedelta(hours=8)))
+        return beijing.strftime('%Y-%m-%d %H:%M')
+    except Exception:
+        return str(time_str)
+
+beijing_update = _to_beijing(update_time) if update_time else update_time
+st.markdown(f"**📡 数据来源：** {data_source_label}  |  **更新时间（北京）：** {beijing_update or update_time}")
 
 
 # ==============================
@@ -245,14 +273,9 @@ else:
 # ==============================
 st.subheader("📋 预警详情")
 
-# 只显示需要的列
-display_columns = ['省份', '城市', '预警类型', '预警等级', '发布时间', '解除时间']
-if all(col in df_filtered.columns for col in display_columns):
-    df_display = df_filtered[display_columns].reset_index(drop=True)
-    st.dataframe(df_display, use_container_width=True, height=400)
-else:
-    st.warning("表格列名不完整，实际列名：" + str(list(df_filtered.columns)))
-    st.dataframe(df_filtered, use_container_width=True, height=400)
+# 只显示需要的列（动态适配实际存在的列）
+df_display = df_filtered[[c for c in display_columns if c in df_filtered.columns]].reset_index(drop=True)
+st.dataframe(df_display, use_container_width=True, height=400)
 
 
 # ==============================

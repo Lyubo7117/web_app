@@ -120,6 +120,10 @@ st.markdown("""
         margin-left: auto;
         margin-right: auto;
     }
+    div[data-testid="stDataFrame"] td,
+    div[data-testid="stDataFrame"] th {
+        text-align: center !important;
+    }
     .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
         text-align: center;
     }

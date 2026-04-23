@@ -12,6 +12,7 @@ Streamlit 多页面应用 - 实时监测页面
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+import branca
 import pandas as pd
 import sys
 import os
@@ -120,6 +121,10 @@ st.markdown("""
         margin-left: auto;
         margin-right: auto;
     }
+    div[data-testid="stDataFrame"] td,
+    div[data-testid="stDataFrame"] th {
+        text-align: center !important;
+    }
     .stMarkdown, .stCaption, .stInfo, .stWarning, .stSuccess {
         text-align: center;
     }
@@ -134,14 +139,15 @@ st.markdown("""
 
 
 # ==============================
-# AQI 等级颜色映射
+# AQI 等级颜色映射（6 级国标）
 # ==============================
 def aqi_color(value):
     if value <= 50:    return '#00e400'
     elif value <= 100: return '#ffff00'
     elif value <= 150: return '#ff7e00'
     elif value <= 200: return '#ff0000'
-    else:              return '#99004c'
+    elif value <= 300: return '#99004c'
+    else:              return '#7e0023'
 
 
 def aqi_level_text(value):
@@ -149,7 +155,8 @@ def aqi_level_text(value):
     elif value <= 100: return '良'
     elif value <= 150: return '轻度污染'
     elif value <= 200: return '中度污染'
-    else:              return '重度污染'
+    elif value <= 300: return '重度污染'
+    else:              return '严重污染'
 
 
 # ==============================
@@ -323,17 +330,17 @@ if df_map.empty:
 
 m = folium.Map(location=[35, 105], zoom_start=4, tiles=None, control_scale=True)
 
-# 高德中文瓦片
+# 高德中文瓦片（默认底图）
 amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
 folium.TileLayer(
-    tiles=amap_url, attr='&copy; 高德地图', name='高德地图',
+    tiles=amap_url, attr='&copy; 高德地图', name='高德地图（中文）',
     subdomains='1234', max_zoom=18, overlay=False, control=True,
 ).add_to(m)
 
-# 备用：CartoDB 底图（海外 fallback）
+# 备用底图：CartoDB（海外稳定 fallback）
 cartodb_url = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
 folium.TileLayer(
-    tiles=cartodb_url, attr='&copy; CartoDB', name='CartoDB',
+    tiles=cartodb_url, attr='&copy; CartoDB', name='CartoDB（英文）',
     max_zoom=18, overlay=False, control=True,
 ).add_to(m)
 
@@ -394,46 +401,55 @@ for _, row in df_map.iterrows():
 
 folium.LayerControl().add_to(m)
 
-# 自定义右下角图例（通过 folium HTML 浮层）
-legend_html = """
+# 右下角 AQI 等级图例（branca MacroElement，6 级国标）
+legend_html = '''
+{% macro html(this, kwargs) %}
 <div style="
     position: fixed;
     bottom: 30px;
-    right: 10px;
+    right: 30px;
     z-index: 9999;
-    background: rgba(255,255,255,0.92);
+    background: rgba(255,255,255,0.95);
+    border: 2px solid #ccc;
     border-radius: 10px;
     padding: 12px 16px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.15);
     font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
     font-size: 13px;
-    line-height: 1.8;
-    min-width: 130px;
+    line-height: 2;
+    min-width: 170px;
 ">
     <div style="font-weight:700; margin-bottom:6px; color:#0a2540; text-align:center;">AQI 等级图例</div>
     <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00e400;border:1px solid #bbb;"></span>
+        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#00e400;border:1px solid #bbb;"></span>
         <span>优 (0-50)</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffff00;border:1px solid #bbb;"></span>
+        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#ffff00;border:1px solid #bbb;"></span>
         <span>良 (51-100)</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff7e00;border:1px solid #bbb;"></span>
+        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#ff7e00;border:1px solid #bbb;"></span>
         <span>轻度污染 (101-150)</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff0000;border:1px solid #bbb;"></span>
+        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#ff0000;border:1px solid #bbb;"></span>
         <span>中度污染 (151-200)</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#99004c;border:1px solid #bbb;"></span>
-        <span>重度污染 (>200)</span>
+        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#99004c;border:1px solid #bbb;"></span>
+        <span>重度污染 (201-300)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#7e0023;border:1px solid #bbb;"></span>
+        <span>严重污染 (>300)</span>
     </div>
 </div>
-"""
-m.get_root().html.add_child(folium.Element(legend_html))
+{% endmacro %}
+'''
+legend = branca.element.MacroElement()
+legend._template = branca.element.Template(legend_html)
+m.get_root().add_child(legend)
 
 st_folium(m, width=1100, height=550)
 
