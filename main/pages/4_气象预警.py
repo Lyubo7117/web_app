@@ -191,26 +191,9 @@ else:
 
 
 # ==============================
-# 数据更新时间 & 来源（转为北京时间）
+# 数据更新时间 & 来源（北京时间）
 # ==============================
-from datetime import timedelta, timezone
-def _to_beijing(time_str):
-    """将时间字符串转为北京时间显示"""
-    if not time_str or time_str == '':
-        return ''
-    try:
-        # 尝试解析常见格式
-        dt = pd.to_datetime(str(time_str).strip())
-        # 如果是 naive datetime，假设为 UTC 并加8
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        beijing = dt.astimezone(timezone(timedelta(hours=8)))
-        return beijing.strftime('%Y-%m-%d %H:%M')
-    except Exception:
-        return str(time_str)
-
-beijing_update = _to_beijing(update_time) if update_time else update_time
-st.markdown(f"**📡 数据来源：** {data_source_label}  |  **更新时间（北京）：** {beijing_update or update_time}")
+st.markdown(f"**📡 数据来源：** {data_source_label}  |  **更新时间（北京）：** {update_time or '未知'}")
 
 
 # ==============================

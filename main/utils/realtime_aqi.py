@@ -144,17 +144,16 @@ def _fetch_weathercom_city(city_info, timeout=10):
 
         aqi_val = safe("t1")
 
-        # AQI 为 0 或 None 视为无效数据
-        if aqi_val is None or aqi_val <= 0:
-            return None
+        # 所有城市都必须保留，无数据显示"暂无"
+        has_data = (aqi_val is not None and aqi_val > 0)
 
         return {
             "city_name": city_info["name"],
             "province": city_info["province"],
             "region": city_info["region"],
-            "aqi": aqi_val,
-            "level": _aqi_level(aqi_val),
-            "color": _aqi_color(aqi_val),
+            "aqi": aqi_val if has_data else None,
+            "level": _aqi_level(aqi_val) if has_data else "暂无",
+            "color": _aqi_color(aqi_val) if has_data else "#cccccc",
             "pm25": safe("t3"),
             "pm10": safe("t4"),
             "co": safe("t5"),
@@ -163,7 +162,7 @@ def _fetch_weathercom_city(city_info, timeout=10):
             "so2": safe("t9"),
             "temperature": safe("t10"),
             "humidity": safe("t11"),
-            "dominant_pollutant": dominant(),
+            "dominant_pollutant": dominant() if has_data else "—",
             "lat": city_info["lat"],
             "lon": city_info["lon"],
             "datetime": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M"),
@@ -218,9 +217,8 @@ def _fetch_openmeteo_city(city_info, timeout=15):
         c = data["current"]
         aqi_val = c.get("us_aqi")
 
-        # AQI 为 None 或 <= 0 视为无效数据
-        if aqi_val is None or (isinstance(aqi_val, (int, float)) and aqi_val <= 0):
-            return None
+        # AQI 为 None 或 <= 0 也保留城市，显示"暂无"
+        has_data = (aqi_val is not None and (isinstance(aqi_val, (int, float)) and aqi_val > 0))
 
         # 首要污染物判定（基于 US EPA IAQI）
         pollutants = {
@@ -231,9 +229,12 @@ def _fetch_openmeteo_city(city_info, timeout=15):
             "SO2": c.get("sulphur_dioxide", 0),
             "CO": c.get("carbon_monoxide", 0),
         }
-        # 简化：取浓度最大的作为首要污染物
-        mx = max(pollutants, key=pollutants.get)
-        dominant = mx if pollutants[mx] > 0 else "—"
+        valid_p = {k: v for k, v in pollutants.items() if v is not None and v > 0}
+        if has_data:
+            mx = max(valid_p, key=valid_p.get) if valid_p else "—"
+            dominant = mx
+        else:
+            dominant = "—"
 
         # 解析时间
         time_str = c.get("time", "")
@@ -247,9 +248,9 @@ def _fetch_openmeteo_city(city_info, timeout=15):
             "city_name": city_info["name"],
             "province": city_info["province"],
             "region": city_info["region"],
-            "aqi": aqi_val,
-            "level": _aqi_level(aqi_val),
-            "color": _aqi_color(aqi_val),
+            "aqi": aqi_val if has_data else None,
+            "level": _aqi_level(aqi_val) if has_data else "暂无",
+            "color": _aqi_color(aqi_val) if has_data else "#cccccc",
             "pm25": c.get("pm2_5"),
             "pm10": c.get("pm10"),
             "co": c.get("carbon_monoxide"),

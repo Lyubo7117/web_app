@@ -239,16 +239,24 @@ if 'aqi' not in df.columns:
     st.error("数据中缺少 'aqi' 列，无法排序。")
     st.stop()
 
-df_sorted = df.dropna(subset=['aqi']).sort_values('aqi', ascending=False)
+# 只对有有效数据的城市排序（无数据显示"暂无"，不参与排名）
+df_valid = df[df['aqi'].notna() & (df['aqi'] > 0)].copy()
+df_sorted = df_valid.sort_values('aqi', ascending=False)
 
 left_col, right_col = st.columns(2)
 
 with left_col:
     st.markdown("#### 🟢 空气最佳 Top 10")
-    best = df_sorted.tail(10).iloc[::-1]
+    if len(df_sorted) >= 10:
+        best = df_sorted.tail(10).iloc[::-1]
+    else:
+        best = df_sorted.iloc[::-1]  # 数据不足10条时全部显示
     display_cols = [c for c in ['city_name', 'aqi', 'level', 'dominant_pollutant'] if c in best.columns]
     col_labels = ['城市', 'AQI', '等级', '首要污染物'][:len(display_cols)]
     best_display = best[display_cols].copy()
+    # 格式化 AQI 为整数
+    if 'aqi' in best_display.columns:
+        best_display['aqi'] = best_display['aqi'].apply(lambda x: int(x) if pd.notna(x) else '—')
     best_display.columns = col_labels
     best_display.reset_index(drop=True, inplace=True)
     best_display.index += 1
@@ -256,10 +264,15 @@ with left_col:
 
 with right_col:
     st.markdown("#### 🔴 空气最差 Top 10")
-    worst = df_sorted.head(10)
+    if len(df_sorted) >= 10:
+        worst = df_sorted.head(10)
+    else:
+        worst = df_sorted
     display_cols = [c for c in ['city_name', 'aqi', 'level', 'dominant_pollutant'] if c in worst.columns]
     col_labels = ['城市', 'AQI', '等级', '首要污染物'][:len(display_cols)]
     worst_display = worst[display_cols].copy()
+    if 'aqi' in worst_display.columns:
+        worst_display['aqi'] = worst_display['aqi'].apply(lambda x: int(x) if pd.notna(x) else '—')
     worst_display.columns = col_labels
     worst_display.reset_index(drop=True, inplace=True)
     worst_display.index += 1
@@ -328,23 +341,24 @@ if df_map.empty:
     st.warning("暂无有效的AQI数据，无法生成热力图")
     st.stop()
 
-m = folium.Map(location=[35, 105], zoom_start=4, tiles=None, control_scale=True)
+m = folium.Map(location=[35, 105], zoom_start=4,
+              tiles=None, control_scale=True)
 
-# 高德中文瓦片（默认底图）
+# 高德中文瓦片作为默认底图（第一个添加的 base layer 自动激活）
 amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
 folium.TileLayer(
     tiles=amap_url, attr='&copy; 高德地图', name='高德地图（中文）',
-    subdomains='1234', max_zoom=18, overlay=False, control=True,
+    subdomains='1234', max_zoom=18, overlay=False, control=True, show=True
 ).add_to(m)
 
 # 备用底图：CartoDB（海外稳定 fallback）
 cartodb_url = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
 folium.TileLayer(
     tiles=cartodb_url, attr='&copy; CartoDB', name='CartoDB（英文）',
-    max_zoom=18, overlay=False, control=True,
+    max_zoom=18, overlay=False, control=True, show=False
 ).add_to(m)
 
-# 中国国界线（含南海诸岛）
+# 中国国界线（含南海诸岛）— 默认开启
 try:
     boundary_data = _load_china_boundary()
     folium.GeoJson(
@@ -352,19 +366,21 @@ try:
         style_function=lambda x: {
             'fillColor': 'transparent', 'color': '#666666',
             'weight': 1.2, 'fillOpacity': 0,
-        }
+        },
+        show=True
     ).add_to(m)
 except Exception:
     pass
 
-# 十段线
+# 十段线 — 默认关闭（可手动勾选）
 try:
     dash_data = _load_ten_dash_line()
     folium.GeoJson(
         dash_data, name='十段线',
         style_function=lambda x: {
             'color': '#666666', 'weight': 2, 'dashArray': '6, 4',
-        }
+        },
+        show=False
     ).add_to(m)
 except Exception:
     pass
@@ -401,48 +417,48 @@ for _, row in df_map.iterrows():
 
 folium.LayerControl().add_to(m)
 
-# 右下角 AQI 等级图例（branca MacroElement，6 级国标）
+# 右下角 AQI 等级图例（branca MacroElement，6 级国标，定位在地图内部）
 legend_html = '''
 {% macro html(this, kwargs) %}
 <div style="
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    z-index: 9999;
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 1000;
     background: rgba(255,255,255,0.95);
     border: 2px solid #ccc;
     border-radius: 10px;
-    padding: 12px 16px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    padding: 10px 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-    font-size: 13px;
-    line-height: 2;
-    min-width: 170px;
+    font-size: 12px;
+    line-height: 1.9;
+    min-width: 155px;
 ">
-    <div style="font-weight:700; margin-bottom:6px; color:#0a2540; text-align:center;">AQI 等级图例</div>
-    <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#00e400;border:1px solid #bbb;"></span>
+    <div style="font-weight:700; margin-bottom:4px; color:#0a2540; text-align:center;">AQI 等级</div>
+    <div style="display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00e400;border:1px solid #bbb;"></span>
         <span>优 (0-50)</span>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#ffff00;border:1px solid #bbb;"></span>
+    <div style="display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffff00;border:1px solid #bbb;"></span>
         <span>良 (51-100)</span>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#ff7e00;border:1px solid #bbb;"></span>
-        <span>轻度污染 (101-150)</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff7e00;border:1px solid #bbb;"></span>
+        <span>轻度 (101-150)</span>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#ff0000;border:1px solid #bbb;"></span>
-        <span>中度污染 (151-200)</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff0000;border:1px solid #bbb;"></span>
+        <span>中度 (151-200)</span>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#99004c;border:1px solid #bbb;"></span>
-        <span>重度污染 (201-300)</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#99004c;border:1px solid #bbb;"></span>
+        <span>重度 (201-300)</span>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#7e0023;border:1px solid #bbb;"></span>
-        <span>严重污染 (>300)</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#7e0023;border:1px solid #bbb;"></span>
+        <span>严重 (>300)</span>
     </div>
 </div>
 {% endmacro %}
