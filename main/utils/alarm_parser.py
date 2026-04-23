@@ -37,7 +37,8 @@ _COLUMN_MAP = {
 
 def get_latest_alarms(data_folder=None):
     """
-    从 data_output/alarms/ 目录中获取最新的预警Excel文件并解析
+    从 data_output/alarms/ 目录中获取最新的预警Excel文件并解析。
+    header=1 读取（第1行大标题，第2行列名），含按位置提取后备方案。
     返回 (DataFrame, latest_file, debug_info)
     """
     import re
@@ -66,10 +67,9 @@ def get_latest_alarms(data_folder=None):
     debug.append(f"[路径] 实际使用: {alarm_dir}")
     debug.append(f"[路径] 目录是否存在: {os.path.exists(alarm_dir)}")
 
-    # 查找所有匹配的Excel文件
+    # 查找匹配的Excel文件
     pattern = os.path.join(alarm_dir, '全国预警信息_*.xlsx')
     files = glob.glob(pattern)
-    # 排除临时文件
     files = [f for f in files if not os.path.basename(f).startswith('~')]
 
     # 备用：递归搜索子目录
@@ -83,63 +83,61 @@ def get_latest_alarms(data_folder=None):
         debug.append("[警告] 未找到预警Excel文件")
         return pd.DataFrame(), None, debug
 
-    # 按修改时间排序，取最新
     latest_file = max(files, key=os.path.getmtime)
     debug.append(f"[文件] 最新文件: {os.path.basename(latest_file)}")
     debug.append(f"[文件] 完整路径: {latest_file}")
 
     try:
-        # 读取Excel，第三行（索引2）作为列名
-        df = pd.read_excel(latest_file, header=2, engine='openpyxl')
-        debug.append(f"[解析] 原始列名: {list(df.columns)[:8]}")
-        debug.append(f"[解析] 原始行数: {len(df)}")
+        # 关键：第二行为列名 (header=1)，第一行是大标题合并单元格
+        df = pd.read_excel(latest_file, header=1, engine='openpyxl')
+        debug.append(f"[解析] 使用header=1，原始列名: {list(df.columns)[:8]}")
 
-        # 清理列名：用 re.sub 去除所有空白字符（空格、换行、制表符等）
+        # 清理列名（去除空格和换行）
         def clean_col(col):
             if pd.isna(col):
                 return ''
-            return re.sub(r'[\s\n\r\t]+', '', str(col)).strip()
-
+            return re.sub(r'[\s\n\r]+', '', str(col))
         df.columns = [clean_col(c) for c in df.columns]
         debug.append(f"[解析] 清理后列名: {list(df.columns)}")
 
-        # 智能列名映射
-        col_map = {}
-        for col in df.columns:
-            if '省份' in col and '省份' not in col_map:
-                col_map['省份'] = col
-            elif '城市' in col and '城市' not in col_map:
-                col_map['城市'] = col
-            elif ('预警类型' in col or ('类型' in col and '预警' in col)) and '预警类型' not in col_map:
-                col_map['预警类型'] = col
-            elif ('预警等级' in col or ('等级' in col and '预警' in col)) and '预警等级' not in col_map:
-                col_map['预警等级'] = col
-            elif '发布时间' in col and '发布时间' not in col_map:
-                col_map['发布时间'] = col
-            elif '解除时间' in col and '解除时间' not in col_map:
-                col_map['解除时间'] = col
+        # 删除全空行
+        df = df.dropna(how='all')
+        # 如果第一行仍然是标题残留（不包含"省份"），跳过
+        if len(df) > 0 and '省份' not in str(df.iloc[0].values):
+            df = df.iloc[1:]
 
-        debug.append(f"[映射] 找到的列映射: {col_map}")
+        debug.append(f"[解析] 最终数据行数: {len(df)}")
 
+        # 检查必要列
         required = ['省份', '城市', '预警类型', '预警等级', '发布时间', '解除时间']
-        if all(k in col_map for k in required):
-            df_clean = df[[col_map[k] for k in required]].copy()
-            df_clean.columns = required
-            # 删除省份和城市均为空的行
-            df_clean = df_clean.dropna(subset=['省份', '城市'], how='all')
-            # 删除值为 "nan"/"None" 字符串的无效行
-            df_clean = df_clean[~(
-                df_clean['省份'].astype(str).str.strip().isin(['', 'nan', 'None']) &
-                df_clean['城市'].astype(str).str.strip().isin(['', 'nan', 'None'])
-            )]
-            debug.append(f"[完成] 解析到 {len(df_clean)} 条有效预警记录")
-            return df_clean, latest_file, debug
+        found_cols = [c for c in df.columns if any(r in c for r in required)]
+        debug.append(f"[映射] 找到的相关列: {found_cols}")
+
+        if all(any(r in c for c in df.columns) for r in required):
+            col_mapping = {}
+            for req in required:
+                for col in df.columns:
+                    if req in col:
+                        col_mapping[req] = col
+                        break
+            df_out = df[[col_mapping[r] for r in required]].copy()
+            df_out.columns = required
+            # 删除省份和城市均为空的无效行
+            df_out = df_out.dropna(subset=['省份', '城市'], how='all')
+            debug.append(f"[完成] 解析到 {len(df_out)} 条预警记录")
+            return df_out, latest_file, debug
         else:
-            missing = [k for k in required if k not in col_map]
-            debug.append(f"[错误] 列映射失败，缺少列：{missing}，找到的映射: {col_map}")
-            return pd.DataFrame(), latest_file, debug
+            # 后备：按位置提取前6列
+            if len(df.columns) >= 6:
+                df_out = df.iloc[:, :6].copy()
+                df_out.columns = required
+                debug.append(f"[后备] 按位置提取前6列，得到 {len(df_out)} 条记录")
+                return df_out, latest_file, debug
+            else:
+                debug.append("[错误] 无法解析列名，且列数不足6")
+                return pd.DataFrame(), latest_file, debug
 
     except Exception as e:
-        debug.append(f"[异常] 解析Excel失败: {str(e)}")
+        debug.append(f"[异常] {str(e)}")
         debug.append(traceback.format_exc())
         return pd.DataFrame(), latest_file, debug
