@@ -7,7 +7,6 @@ Streamlit 多页面应用 — 实时监测页面
 - 展示最新 AQI 排名（最佳/最差 Top 10）
 - folium 全国污染热力分布地图
 - 手动刷新按钮
-- 调试信息面板（可在排查问题后关闭）
 """
 
 import streamlit as st
@@ -92,12 +91,7 @@ else:
     df, run_dir, debug_info = _load_crawler_data()
 
 
-# ==============================
-# 调试信息面板（可折叠）
-# ==============================
-with st.expander("🔍 调试信息（排查用）", expanded=False):
-    for line in debug_info:
-        st.text(line)
+
 
 
 # ==============================

@@ -68,10 +68,7 @@ if st.button("🔄 刷新数据"):
 
 df, run_dir, debug_info = _load_data()
 
-# 调试信息
-with st.expander("🔧 调试信息", expanded=False):
-    for line in debug_info:
-        st.text(line)
+
 
 
 # ==============================

@@ -23,6 +23,74 @@ st.set_page_config(
     layout="wide"
 )
 
+# ==================== 全局美化 CSS ====================
+st.markdown("""
+<style>
+    /* 整体背景渐变 */
+    .stApp {
+        background: linear-gradient(135deg, #e6f0fa 0%, #b0d4f0 100%);
+    }
+
+    /* 侧边栏背景 */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1e3a5f 0%, #0d2137 100%);
+        color: white;
+    }
+    section[data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    section[data-testid="stSidebar"] button {
+        background-color: #2a5a8c !important;
+        color: white !important;
+    }
+
+    /* 主内容卡片效果 */
+    div[data-testid="stMetric"], div[data-testid="stDataFrame"], div[data-testid="stTable"] {
+        background-color: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(5px);
+        border-radius: 12px;
+        padding: 15px;
+        box-shadow: 0 4px 12px rgba(0, 20, 40, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+
+    /* 标题样式 */
+    h1, h2, h3 {
+        color: #0a1f33 !important;
+        font-weight: 600 !important;
+    }
+
+    /* 按钮样式 */
+    .stButton button {
+        background: linear-gradient(90deg, #1e5b9e, #0d3c6f);
+        color: white;
+        border: none;
+        border-radius: 20px;
+        padding: 8px 20px;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+    .stButton button:hover {
+        background: linear-gradient(90deg, #2a7ac5, #15559a);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+
+    /* 表格表头 */
+    th {
+        background-color: #1e3a5f !important;
+        color: white !important;
+        font-weight: 600 !important;
+    }
+
+    /* 信息提示框 */
+    .stAlert {
+        background-color: rgba(30, 90, 150, 0.1);
+        border-left: 4px solid #1e5b9e;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ==================== 主界面 ====================
 st.title("🌏 中国省会城市空气质量实时监测与历史分析")
 st.markdown("---")

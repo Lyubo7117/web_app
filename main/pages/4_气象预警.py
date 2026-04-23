@@ -6,7 +6,6 @@ Streamlit 多页面应用 — 气象预警监测页面
 - 加载 weather_alarm_crawler 生成的最新预警 Excel 数据
 - 展示预警总数、按等级分布统计
 - 支持按省份筛选的预警列表
-- 调试信息面板
 """
 
 import streamlit as st
@@ -48,13 +47,7 @@ def _load_alarm_data():
 df, file_path, debug_info = _load_alarm_data()
 
 
-# ==============================
-# 调试信息面板（可折叠）
-# ==============================
-# 调试信息（默认隐藏，需要时可展开）
-with st.expander("🔧 调试信息", expanded=False):
-    for line in debug_info:
-        st.text(line)
+
 
 
 # ==============================
