@@ -66,11 +66,31 @@ if df.empty:
 
 
 # ==============================
+# 统一列名：兼容中文列名（新版）和英文列名（旧版）
+# ==============================
+# alarm_parser 最终版返回中文列名，旧版返回英文列名
+# 这里统一转换为中文，方便后续处理
+_en_to_zh = {
+    'province': '省份',
+    'city': '城市',
+    'alarm_type': '预警类型',
+    'alarm_level': '预警等级',
+    'publish_time': '发布时间',
+    'cancel_time': '解除时间',
+}
+df = df.rename(columns={k: v for k, v in _en_to_zh.items() if k in df.columns})
+
+# 标准中文列名
+DISPLAY_COLUMNS = ['省份', '城市', '预警类型', '预警等级', '发布时间', '解除时间']
+
+
+# ==============================
 # 数据更新时间
 # ==============================
-if 'publish_time' in df.columns and not df['publish_time'].empty:
+time_col = '发布时间' if '发布时间' in df.columns else None
+if time_col and not df[time_col].empty:
     try:
-        update_time = pd.to_datetime(df['publish_time']).max()
+        update_time = pd.to_datetime(df[time_col]).max()
         st.markdown(f"**📡 数据时间：** {update_time}")
     except Exception:
         st.markdown(f"**📡 数据文件：** {os.path.basename(file_path) if file_path else '未知'}")
@@ -87,8 +107,9 @@ st.metric(label="预警总数", value=len(df))
 # ==============================
 # 按预警等级分组统计
 # ==============================
-if 'alarm_level' in df.columns:
-    level_counts = df['alarm_level'].value_counts()
+level_col = '预警等级' if '预警等级' in df.columns else None
+if level_col:
+    level_counts = df[level_col].value_counts()
 
     # 按优先级排序：红 > 橙 > 黄 > 蓝 > 其他
     priority = {'红色': 0, '橙色': 1, '黄色': 2, '蓝色': 3}
@@ -97,36 +118,37 @@ if 'alarm_level' in df.columns:
         key=lambda x: priority.get(str(x), 99)
     )
 
-    # 等级对应 emoji 和颜色
+    # 等级对应 emoji
     level_style = {
-        '红色': ('🔴', '#ff0000'),
-        '橙色': ('🟠', '#ff7e00'),
-        '黄色': ('🟡', '#ffff00'),
-        '蓝色': ('🔵', '#4488ff'),
+        '红色': '🔴',
+        '橙色': '🟠',
+        '黄色': '🟡',
+        '蓝色': '🔵',
     }
 
     cols = st.columns(min(len(sorted_levels), 4))
     for i, level in enumerate(sorted_levels):
-        emoji = level_style.get(str(level), ('⚪', '#888'))[0]
+        emoji = level_style.get(str(level), '⚪')
         count = int(level_counts[level])
         with cols[i]:
             st.metric(label=f"{emoji} {level}预警", value=count)
 else:
-    st.info("数据中未找到 'alarm_level' 列，无法按等级统计。")
+    st.info("数据中未找到预警等级列，无法按等级统计。")
 
 
 # ==============================
 # 按省份筛选
 # ==============================
-if 'province' in df.columns and df['province'].nunique() > 1:
-    all_provinces = sorted(df['province'].dropna().unique().tolist())
+province_col = '省份' if '省份' in df.columns else None
+if province_col and df[province_col].nunique() > 1:
+    all_provinces = sorted(df[province_col].dropna().unique().tolist())
     selected = st.multiselect(
         label="🏢 按省份筛选",
         options=all_provinces,
         default=all_provinces,
         key="province_filter"
     )
-    df_filtered = df[df['province'].isin(selected)]
+    df_filtered = df[df[province_col].isin(selected)]
 else:
     df_filtered = df
 
@@ -136,24 +158,11 @@ else:
 # ==============================
 st.subheader("📋 预警详情")
 
-# 优先展示的列
-display_cols = [c for c in ['province', 'city', 'alarm_type', 'alarm_level', 'publish_time', 'cancel_time']
-                if c in df_filtered.columns]
-
-# 中文列名映射
-col_rename = {
-    'province': '省份',
-    'city': '城市',
-    'alarm_type': '预警类型',
-    'alarm_level': '预警等级',
-    'publish_time': '发布时间',
-    'cancel_time': '解除时间',
-}
-
-if display_cols:
-    df_display = df_filtered[display_cols].copy()
-    df_display.rename(columns=col_rename, inplace=True)
-    df_display.reset_index(drop=True, inplace=True)
+# 只显示需要的列
+display_columns = ['省份', '城市', '预警类型', '预警等级', '发布时间', '解除时间']
+if all(col in df_filtered.columns for col in display_columns):
+    df_display = df_filtered[display_columns].reset_index(drop=True)
     st.dataframe(df_display, use_container_width=True, height=400)
 else:
+    st.warning("表格列名不完整，实际列名：" + str(list(df_filtered.columns)))
     st.dataframe(df_filtered, use_container_width=True, height=400)
