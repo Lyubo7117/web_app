@@ -390,18 +390,7 @@ for _, row in df_map.iterrows():
         tooltip=f"{city}: AQI {int(aqi_val)}",
     ).add_to(m)
 
-# 只有一个底图，不需要图层控制器
-# folium.LayerControl().add_to(m)
-
-
-
-# 自动缩放：让地图紧贴所有城市标记
-all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
-            if pd.notna(row.get('lat')) and pd.notna(row.get('lon'))
-            and float(row.get('lat', 0)) != 0 and float(row.get('lon', 0)) != 0]
-if all_locs:
-    m.fit_bounds(all_locs, padding=(30, 30))
-
+# 不使用 fit_bounds，让地图自然填满容器（避免底部空白）
 st_folium(m, use_container_width=True, height=550)
 
 # ==============================
