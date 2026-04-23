@@ -417,25 +417,26 @@ for _, row in df_map.iterrows():
 
 folium.LayerControl().add_to(m)
 
-# 右下角 AQI 等级图例（固定定位，始终可见）
+# 右下角 AQI 等级图例（固定定位，强制可见）
 legend_html = '''
 {% macro html(this, kwargs) %}
 <div style="position: fixed;
-            bottom: 30px; right: 30px; width: 180px;
-            border: 2px solid #ccc; z-index: 9999; font-size: 14px;
-            background-color: white; opacity: 0.9; border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            bottom: 18px; right: 18px; width: 195px;
+            border: 2px solid #1a365d; z-index: 9999; font-size: 13px;
+            background-color: white; opacity: 0.92; border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
   <div style="padding: 10px;">
-      <b>AQI 空气质量等级</b><br>
-      <i style="background:#00e400; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 优 (0-50)<br>
-      <i style="background:#ffff00; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 良 (51-100)<br>
-      <i style="background:#ff7e00; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 轻度污染 (101-150)<br>
-      <i style="background:#ff0000; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 中度污染 (151-200)<br>
-      <i style="background:#99004c; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 重度污染 (201-300)<br>
-      <i style="background:#7e0023; width:18px;height:18px;display:inline-block;border-radius:50%;border:1px solid #bbb;margin-right:4px;"></i> 严重污染 (>300)
+      <b>空气质量等级 (AQI)</b><br>
+      <i style="background:#A8E05F; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 优 (0-50)<br>
+      <i style="background:#FDD74B; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 良 (51-100)<br>
+      <i style="background:#FE9B57; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 轻度污染 (101-150)<br>
+      <i style="background:#FE6A69; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 中度污染 (151-200)<br>
+      <i style="background:#A97ABC; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 重度污染 (201-300)<br>
+      <i style="background:#A87383; width:18px;height:18px;display:inline-block;border-radius:3px;margin-right:4px;vertical-align:middle;"></i> 严重污染 (>300)
   </div>
 </div>
-{% endmacro %}'''
+{% endmacro %}
+'''
 legend = branca.element.MacroElement()
 legend._template = branca.element.Template(legend_html)
 m.get_root().add_child(legend)

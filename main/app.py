@@ -152,7 +152,7 @@ with col1:
         st.switch_page("pages/1_实时监测.py")
 
 with col2:
-    if st.button("📈 历史分析\n\n2015-2024趋势 · 相关性热力图 · 驱动因素", key="nav_history", use_container_width=True):
+    if st.button("📈 历史分析\n\n动态趋势 · 相关性矩阵 · 随机森林建模", key="nav_history", use_container_width=True):
         st.switch_page("pages/2_历史分析.py")
 
 with col3:

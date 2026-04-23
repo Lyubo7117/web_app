@@ -137,6 +137,22 @@ def get_latest_alarms(data_folder=None):
             df_out.columns = required
             # 删除省份、城市均为空的行
             df_out = df_out.dropna(subset=['省份', '城市'], how='all')
+
+            # 填充空白城市名：用省份名 + "（省级预警）" 替代
+            if '城市' in df_out.columns:
+                mask_empty = (
+                    df_out['城市'].isna() |
+                    (df_out['城市'].astype(str).str.strip() == '')
+                )
+                if mask_empty.any():
+                    for idx in df_out[mask_empty].index:
+                        prov = str(df_out.at[idx, '省份']).strip()
+                        if prov and prov != '' and prov.lower() != 'nan':
+                            df_out.at[idx, '城市'] = f"{prov}（省级预警）"
+                        else:
+                            df_out.at[idx, '城市'] = "未知地区"
+                    debug.append(f"[修复] 已填充 {mask_empty.sum()} 个空白城市名")
+
             debug.append(f"[完成] 解析到 {len(df_out)} 条有效预警记录")
             return df_out, latest_file, debug
         else:
