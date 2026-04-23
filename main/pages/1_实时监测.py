@@ -14,6 +14,8 @@ Streamlit 多页面应用 - 实时监测页面
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+import streamlit.components.v1 as components
+from branca.element import Figure
 import pandas as pd
 import sys
 import os
@@ -137,27 +139,8 @@ st.markdown("""
         padding: 12px 14px;
         line-height: 1.9;
     }
-    /* 地图容器：固定高度，消除右侧和下方多余留白 */
-    div[data-testid="stFolium"] {
-        padding: 0 !important;
-        margin: 0 !important;
-        max-height: 410px;
-        overflow: hidden;
-        background: transparent !important;
-        border-radius: 8px;
-    }
-    /* 地图 iframe 紧贴容器 */
-    div[data-testid="stFolium"] > iframe {
-        display: block;
-        margin: 0 auto;
-        border-radius: 8px;
-        max-height: 400px !important;
-    }
-    /* 去除地图组件底部外边距（紧贴分割线） */
-    .stFoliumMap {
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
-    }
+    /* 图例浮动层样式（components.html 渲染时不需要） */
+
     .aqi-legend-float b {
         display: block;
         margin-bottom: 4px;
@@ -342,7 +325,7 @@ if df_map.empty:
     st.warning("暂无有效的AQI数据，无法生成热力图")
     st.stop()
 
-# [修5] tiles=None 后用 TileLayer 添加高德底图（不能直接传 URL 给 tiles 参数）
+# tiles=None 后用 TileLayer 添加高德底图
 m = folium.Map(location=[38, 108], zoom_start=4, tiles=None)
 
 amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
@@ -351,7 +334,7 @@ folium.TileLayer(
     subdomains='1234', max_zoom=18, overlay=False, control=True, show=True
 ).add_to(m)
 
-# 中国国界线（优先本地文件，避免每次请求阿里云）
+# 中国国界线（优先本地文件）
 try:
     boundary_data = _load_china_boundary()
     folium.GeoJson(
@@ -367,7 +350,6 @@ except Exception:
 # AQI 圆点标记
 for _, row in df_map.iterrows():
     try:
-        # [修4] 正确列名 city_name
         city = str(row.get('city_name', ''))
         aqi_val = float(row.get('aqi', 0))
         lat = float(row.get('lat', 0))
@@ -395,9 +377,6 @@ for _, row in df_map.iterrows():
         tooltip=f"{city}: AQI {int(aqi_val)}",
     ).add_to(m)
 
-# 只有一个底图，不需要图层控制器
-# folium.LayerControl().add_to(m)
-
 # 自动缩放：让地图紧贴所有城市标记
 all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
             if pd.notna(row.get('lat')) and pd.notna(row.get('lon'))
@@ -405,23 +384,11 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
 if all_locs:
     m.fit_bounds(all_locs, padding=(30, 30))
 
-st_folium(m, use_container_width=True, height=400)
-
-
-# ==============================
-# 右下角 AQI 图例 — 独立 st.markdown 浮动层（确保可见）
-# ==============================
-st.markdown("""
-<div class="aqi-legend-float">
-<b>📊 空气质量等级 (AQI)</b>
-<div class="lg-item"><i style="background:#00e400;"></i> 优 (0–50)</div>
-<div class="lg-item"><i style="background:#ffff00;"></i> 良 (51–100)</div>
-<div class="lg-item"><i style="background:#ff7e00;"></i> 轻度污染 (101–150)</div>
-<div class="lg-item"><i style="background:#ff0000;"></i> 中度污染 (151–200)</div>
-<div class="lg-item"><i style="background:#99004c;"></i> 重度污染 (201–300)</div>
-<div class="lg-item"><i style="background:#7e0023;"></i> 严重污染 (>300)</div>
-</div>
-""", unsafe_allow_html=True)
+# ===== 用 components.html 替代 st_folium，精确控制高度，消除空白 =====
+fig = Figure(height=450, width='100%')
+m.add_to(fig)
+map_html = fig.render()
+components.html(map_html, height=450, scrolling=False)
 
 
 # ==============================
