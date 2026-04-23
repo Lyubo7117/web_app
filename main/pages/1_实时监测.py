@@ -15,7 +15,8 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import streamlit.components.v1 as components
-from branca.element import Figure
+from branca.element import Figure, MacroElement, Template
+import branca
 import pandas as pd
 import sys
 import os
@@ -325,14 +326,13 @@ if df_map.empty:
     st.warning("暂无有效的AQI数据，无法生成热力图")
     st.stop()
 
-# tiles=None 后用 TileLayer 添加高德底图
-m = folium.Map(location=[38, 108], zoom_start=4, tiles=None)
-
-amap_url = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
-folium.TileLayer(
-    tiles=amap_url, attr='&copy; 高德地图', name='高德地图',
-    subdomains='1234', max_zoom=18, overlay=False, control=True, show=True
-).add_to(m)
+# 创建地图
+m = folium.Map(
+    location=[35, 110],
+    zoom_start=4,
+    tiles='http://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+    attr='高德地图'
+)
 
 # 中国国界线（优先本地文件）
 try:
@@ -363,9 +363,16 @@ for _, row in df_map.iterrows():
     except (ValueError, TypeError):
         continue
 
-    radius = aqi_val / 5 + 5
-    color = aqi_color(aqi_val)
+    # AQI 等级颜色
+    if aqi_val <= 50:     color = '#A8E05F'
+    elif aqi_val <= 100:  color = '#FDD74B'
+    elif aqi_val <= 150:  color = '#FE9B57'
+    elif aqi_val <= 200:  color = '#FE6A69'
+    elif aqi_val <= 300:  color = '#A97ABC'
+    else:                 color = '#A87383'
+
     level = aqi_level_text(aqi_val)
+    radius = aqi_val / 5 + 5
 
     folium.CircleMarker(
         location=[lat, lon], radius=radius,
@@ -384,7 +391,30 @@ all_locs = [[row['lat'], row['lon']] for _, row in df_map.iterrows()
 if all_locs:
     m.fit_bounds(all_locs, padding=(30, 30))
 
-# ===== 用 components.html 替代 st_folium，精确控制高度，消除空白 =====
+# ========== 图例（branca MacroElement 嵌入地图） ==========
+legend_html = '''
+{% macro html(this, kwargs) %}
+<div style="position: fixed; bottom: 120px; right: 18px; width: 195px;
+            border:2px solid #1a365d; z-index: 99999 !important; font-size: 13px;
+            background-color: white; opacity: 0.92; border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+  <div style="padding: 10px;">
+    <b>📊 空气质量等级 (AQI)</b><br>
+    <i style="background:#A8E05F; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 优 (0-50)<br>
+    <i style="background:#FDD74B; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 良 (51-100)<br>
+    <i style="background:#FE9B57; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 轻度污染 (101-150)<br>
+    <i style="background:#FE6A69; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 中度污染 (151-200)<br>
+    <i style="background:#A97ABC; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 重度污染 (201-300)<br>
+    <i style="background:#A87383; width: 18px; height: 18px; display: inline-block; border-radius: 3px;"></i> 严重污染 (>300)
+  </div>
+</div>
+{% endmacro %}
+'''
+legend = MacroElement()
+legend._template = Template(legend_html)
+m.get_root().add_child(legend)
+
+# ========== 用 components.html 渲染（精确控制高度） ==========
 fig = Figure(height=450, width='100%')
 m.add_to(fig)
 map_html = fig.render()
