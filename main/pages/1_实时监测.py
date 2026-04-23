@@ -311,41 +311,6 @@ def _load_china_boundary():
     resp = urllib.request.urlopen(req, timeout=15)
     return json.loads(resp.read().decode('utf-8'))
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def _load_ten_dash_line():
-    url = 'https://raw.githubusercontent.com/gmt-china/china-geospatial-data/master/ten-dash-line.gmt'
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    resp = urllib.request.urlopen(req, timeout=15)
-    gmt_text = resp.read().decode('utf-8')
-
-    segments = []
-    current = []
-    for line in gmt_text.strip().split('\n'):
-        line = line.strip()
-        if line.startswith('#') or line.startswith('@'):
-            continue
-        if not line:
-            if current:
-                segments.append(current)
-                current = []
-            continue
-        parts = line.split()
-        if len(parts) >= 2:
-            try:
-                current.append([float(parts[0]), float(parts[1])])
-            except ValueError:
-                pass
-    if current:
-        segments.append(current)
-
-    return {
-        "type": "FeatureCollection",
-        "features": [{
-            "type": "Feature",
-            "properties": {"name": "ten_dash_line"},
-            "geometry": {"type": "LineString", "coordinates": seg}
-        } for seg in segments if len(seg) >= 2]
-    }
 
 
 # ==============================
@@ -385,18 +350,6 @@ try:
             'fillColor': 'transparent', 'color': '#666666',
             'weight': 1.2, 'fillOpacity': 0,
         }, show=True
-    ).add_to(m)
-except Exception:
-    pass
-
-# 南海十段线（默认关闭）
-try:
-    dash_data = _load_ten_dash_line()
-    folium.GeoJson(
-        dash_data, name='十段线',
-        style_function=lambda x: {
-            'color': '#666666', 'weight': 2, 'dashArray': '6, 4',
-        }, show=False
     ).add_to(m)
 except Exception:
     pass
