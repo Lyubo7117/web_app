@@ -365,3 +365,81 @@ def parse_alarm_excel(file_path: str) -> pd.DataFrame:
     except Exception as e:
         print(f"[ERROR] 解析预警 Excel 失败：{e}")
         return pd.DataFrame(columns=ALARM_COLUMNS)
+
+
+# ==============================
+# 全部历史数据汇总
+# ==============================
+def get_all_historical_data(data_folder=None):
+    """
+    遍历 data_output/aqi/ 下所有批次目录，汇总所有城市-时间戳的完整历史记录。
+    返回 (DataFrame, debug_info)。
+
+    与 get_latest_aqi_snapshot 不同，本函数保留每个城市的全部小时级记录，
+    不截取最新一条，适用于时序趋势分析和建模。
+
+    Parameters
+    ----------
+    data_folder : str, optional
+        AQI 数据目录路径。默认自动定位。
+
+    Returns
+    -------
+    tuple: (pd.DataFrame, list)
+        - df: 合并后的完整历史数据（宽表）
+        - debug_info: 调试信息列表
+    """
+    import pandas as pd
+
+    debug = []
+    debug.append("[开始] get_all_historical_data 执行")
+
+    # 路径定位：优先相对当前工作目录，其次相对于本模块所在位置
+    base_dir = os.path.join(os.getcwd(), 'main', 'data_output', 'aqi')
+    fallback_dir = os.path.join(os.path.dirname(__file__), '..', 'data_output', 'aqi')
+    aqi_root = base_dir if os.path.exists(base_dir) else fallback_dir
+
+    if not os.path.exists(aqi_root):
+        debug.append(f"[错误] 数据目录不存在: {aqi_root}")
+        return pd.DataFrame(), debug
+
+    # 获取所有批次子目录
+    run_dirs = sorted([
+        d for d in os.listdir(aqi_root)
+        if os.path.isdir(os.path.join(aqi_root, d))
+    ])
+    debug.append(f"[统计] 找到 {len(run_dirs)} 个批次目录: {run_dirs}")
+
+    all_records = []
+    for run_dir in run_dirs:
+        run_path = os.path.join(aqi_root, run_dir)
+        # 遍历该批次下所有区域子文件夹内的 Excel 文件
+        for root, dirs, files in os.walk(run_path):
+            for file in files:
+                if file.endswith('.xlsx') and not file.startswith('全国'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        df_city = parse_aqi_excel(file_path)
+                        if not df_city.empty:
+                            # 保留所有小时记录（不取最新一条）
+                            all_records.append(df_city)
+                    except Exception as e:
+                        debug.append(f"[警告] 解析失败: {file_path}, 原因: {str(e)}")
+
+    if not all_records:
+        debug.append("[错误] 未解析到任何有效数据")
+        return pd.DataFrame(), debug
+
+    df_all = pd.concat(all_records, ignore_index=True)
+
+    # 去重：同一城市同一时刻保留最后出现的记录
+    df_all = df_all.drop_duplicates(subset=['city', 'datetime'], keep='last')
+
+    # 按城市和时间排序
+    df_all = df_all.sort_values(['city', 'datetime']).reset_index(drop=True)
+
+    debug.append(f"[完成] 共解析 {len(df_all)} 条历史记录，覆盖 {df_all['city'].nunique()} 个城市")
+    if 'datetime' in df_all.columns and len(df_all) > 0:
+        debug.append(f"[时间范围] {df_all['datetime'].min()} ~ {df_all['datetime'].max()}")
+
+    return df_all, debug

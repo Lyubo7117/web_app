@@ -36,12 +36,12 @@ with st.sidebar:
     st.markdown("---")
     if st.button("📍 实时监测", key="sidebar_realtime", use_container_width=True):
         st.switch_page("pages/1_实时监测.py")
-    if st.button("📈 历史分析", key="sidebar_history", use_container_width=True):
-        st.switch_page("pages/2_历史分析.py")
-    if st.button("📊 今日快报", key="sidebar_report", use_container_width=True):
-        st.switch_page("pages/3_今日快报.py")
     if st.button("🚨 气象预警", key="sidebar_warning", use_container_width=True):
         st.switch_page("pages/4_气象预警.py")
+    if st.button("📊 今日快报", key="sidebar_report", use_container_width=True):
+        st.switch_page("pages/3_今日快报.py")
+    if st.button("📈 历史分析", key="sidebar_history", use_container_width=True):
+        st.switch_page("pages/2_历史分析.py")
 
 # ==============================
 # 蓝色主题 CSS
@@ -417,13 +417,14 @@ for _, row in df_map.iterrows():
 
 folium.LayerControl().add_to(m)
 
-# 右下角 AQI 等级图例（branca MacroElement，6 级国标，定位在地图内部）
+# 右下角 AQI 等级图例（通过 JS 动态注入到 Leaflet 地图容器内，确保紧贴地图右下角）
 legend_html = '''
 {% macro html(this, kwargs) %}
-<div style="
+<div id="aqi-legend" style="
+    display:none;
     position: absolute;
-    bottom: 10px;
-    right: 10px;
+    bottom: 12px;
+    right: 12px;
     z-index: 1000;
     background: rgba(255,255,255,0.95);
     border: 2px solid #ccc;
@@ -434,33 +435,38 @@ legend_html = '''
     font-size: 12px;
     line-height: 1.9;
     min-width: 155px;
+    pointer-events: auto;
 ">
     <div style="font-weight:700; margin-bottom:4px; color:#0a2540; text-align:center;">AQI 等级</div>
-    <div style="display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00e400;border:1px solid #bbb;"></span>
-        <span>优 (0-50)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffff00;border:1px solid #bbb;"></span>
-        <span>良 (51-100)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff7e00;border:1px solid #bbb;"></span>
-        <span>轻度 (101-150)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff0000;border:1px solid #bbb;"></span>
-        <span>中度 (151-200)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#99004c;border:1px solid #bbb;"></span>
-        <span>重度 (201-300)</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#7e0023;border:1px solid #bbb;"></span>
-        <span>严重 (>300)</span>
-    </div>
+    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#00e400;border:1px solid #bbb;"></span><span>优 (0-50)</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ffff00;border:1px solid #bbb;"></span><span>良 (51-100)</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff7e00;border:1px solid #bbb;"></span><span>轻度 (101-150)</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#ff0000;border:1px solid #bbb;"></span><span>中度 (151-200)</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#99004c;border:1px solid #bbb;"></span><span>重度 (201-300)</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:#7e0023;border:1px solid #bbb;"></span><span>严重 (&gt;300)</span></div>
 </div>
+<script>
+(function(){
+    var legend = document.getElementById('aqi-legend');
+    if(!legend) return;
+    function injectLegend(){
+        var mapContainer = document.querySelector('.leaflet-container');
+        if(mapContainer){
+            var pos = getComputedStyle(mapContainer).position;
+            if(pos !== 'absolute' && pos !== 'relative' && pos !== 'fixed'){
+                mapContainer.style.position = 'relative';
+            }
+            if(legend.parentNode !== mapContainer){
+                mapContainer.appendChild(legend);
+            }
+            legend.style.display = 'block';
+        } else {
+            setTimeout(injectLegend, 100);
+        }
+    }
+    injectLegend();
+})();
+</script>
 {% endmacro %}
 '''
 legend = branca.element.MacroElement()
