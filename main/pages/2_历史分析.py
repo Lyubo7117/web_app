@@ -144,7 +144,6 @@ if not df_rt.empty and len(df_rt) > 0:
         df_all = pd.concat([df_all, df_realtime], ignore_index=True)
         df_all = df_all.drop_duplicates(subset=['city', 'datetime'], keep='last')
         df_all = df_all.sort_values(['city', 'datetime']).reset_index(drop=True)
-        st.success(f"✅ 已叠加 **{rt_source}** 实时数据（{len(df_realtime)} 条），数据已补全至当前时刻")
 else:
     st.warning("⚠️ 实时数据源暂不可用，当前仅展示爬虫批次数据（每3小时更新）")
 
@@ -433,7 +432,7 @@ summary = f"""
 
 > 📌 **规划建议**：建议在源头管控上优先治理 **{top_pollutant}** 的排放，并结合气象条件优化监测布局。
 
-> 💡 **数据说明**：本页面数据由爬虫历史批次 + 实时 API 共同提供，每次访问自动刷新至最新时刻。
+> 💡 **数据说明**：本页面数据由历史批次 + 实时 API 共同提供，每次访问自动刷新至最新时刻。
 """
 st.markdown(summary)
 
