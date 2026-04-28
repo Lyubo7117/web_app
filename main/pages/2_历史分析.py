@@ -83,28 +83,34 @@ st.header("📈 历史趋势与驱动因素分析（动态实时）")
 
 
 # ==============================
-# 数据加载 — 三层策略：缓存清除 → 批次数据 → 实时补全
+# 数据加载 — 三层策略：缓存 → 批次数据 → 实时补全
 # ==============================
 
-# 【关键】强制清除缓存，确保每次加载最新数据
-st.cache_data.clear()
-
 if st.button("🔄 刷新分析"):
+    st.cache_data.clear()
     st.rerun()
 
 
-# 第一步：加载所有爬虫批次历史数据
+# 第一步：加载所有爬虫批次历史数据（带缓存，5分钟内复用）
+@st.cache_data(ttl=300, show_spinner="正在加载历史数据（使用缓存加速）...")
+def _load_historical():
+    return get_all_historical_data()
+
 with st.spinner("正在从所有历史批次中加载数据..."):
-    df_all, debug = get_all_historical_data()
+    df_all, debug = _load_historical()
 
 if df_all.empty:
     st.warning("暂无足够的历史数据用于分析。请确保已爬取至少一个批次的数据。")
     st.stop()
 
 
-# 第二步：【关键修复】叠加实时 API 数据，补全至"当前时刻"
+# 第二步：【关键修复】叠加实时 API 数据，补全至"当前时刻"（带5分钟缓存）
+@st.cache_data(ttl=300, show_spinner="正在获取实时数据...")
+def _load_realtime():
+    return fetch_realtime_aqi(cache_ttl=300)
+
 with st.spinner("正在获取实时数据，补全最新时段..."):
-    df_rt, rt_time, _, rt_source = fetch_realtime_aqi(cache_ttl=300)
+    df_rt, rt_time, _, rt_source = _load_realtime()
 
 if not df_rt.empty and len(df_rt) > 0:
     rt_records = []
@@ -281,28 +287,50 @@ importance_df = None
 top_pollutant = "暂未计算出"
 test_score_r2 = 0.0
 
+# 随机森林训练结果缓存（数据不变时复用）
+@st.cache_data(ttl=600, show_spinner="正在训练随机森林模型...")
+def _train_rf_model(df_model_input, avail_features_input):
+    """训练随机森林并返回结果，避免每次访问重复计算"""
+    X = df_model_input[avail_features_input]
+    y = df_model_input['aqi']
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_scaled, y, test_size=0.2, random_state=42
+    )
+
+    rf = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+    rf.fit(X_train, y_train)
+
+    train_score = rf.score(X_train, y_train)
+    test_score = rf.score(X_test, y_test)
+
+    importances = rf.feature_importances_
+    importance_df_local = pd.DataFrame({
+        '特征': avail_feature_labels, '重要性': importances
+    }).sort_values('重要性', ascending=True)
+    top_pollutant_local = importance_df_local.iloc[-1]['特征']
+
+    return {
+        'train_score': train_score,
+        'test_score': test_score,
+        'importance_df': importance_df_local,
+        'top_pollutant': top_pollutant_local,
+    }
+
 if len(avail_features) >= 2 and 'aqi' in df_all.columns:
     df_model = df_all[['aqi'] + avail_features].dropna()
     if len(df_model) > 100:
-        X = df_model[avail_features]
-        y = df_model['aqi']
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-
-        rf = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-        rf.fit(X_train, y_train)
-
-        train_score = rf.score(X_train, y_train)
-        test_score_r2 = rf.score(X_test, y_test)
+        # 用缓存函数训练（数据hash不变时直接返回）
+        rf_result = _train_rf_model(df_model, avail_features)
+        train_score = rf_result['train_score']
+        test_score_r2 = rf_result['test_score']
+        importance_df = rf_result['importance_df']
+        top_pollutant = rf_result['top_pollutant']
 
         col_rf1, col_rf2 = st.columns(2)
         col_rf1.metric("训练集 R²", f"{train_score:.4f}")
         col_rf2.metric("测试集 R²", f"{test_score_r2:.4f}")
-
-        importances = rf.feature_importances_
-        importance_df = pd.DataFrame({'特征': avail_feature_labels, '重要性': importances}).sort_values('重要性', ascending=True)
-        top_pollutant = importance_df.iloc[-1]['特征']
 
         fig_importance = go.Figure(go.Bar(
             x=importance_df['重要性'], y=importance_df['特征'], orientation='h',
