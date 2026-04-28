@@ -163,7 +163,7 @@ else:
 city_nunique = df_all['city'].nunique() if 'city' in df_all.columns else 0
 
 st.markdown(
-    f"**数据来源：** 爬虫批次 + {rt_source if not df_rt.empty else '无'} 实时API  |  "
+    f"**数据来源：** {rt_source if not df_rt.empty else '无'} 实时API  |  "
     f"**时间跨度：** {time_min} ~ {time_max}  |  "
     f"**累计记录：** {len(df_all)} 条  |  "
     f"**覆盖城市：** {city_nunique} 个"
