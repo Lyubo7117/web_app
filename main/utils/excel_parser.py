@@ -8,6 +8,7 @@ Excel 数据解析工具模块
 
 import os
 import glob
+import time
 import pandas as pd
 
 
@@ -368,12 +369,35 @@ def parse_alarm_excel(file_path: str) -> pd.DataFrame:
 
 
 # ==============================
+# CSV 持久化缓存工具
+# ==============================
+def _get_latest_xlsx_mtime(aqi_root):
+    """
+    扫描 aqi_root 下所有 .xlsx 文件，返回最新修改时间。
+    用于判断缓存是否过期。
+    """
+    latest = 0
+    for root, dirs, files in os.walk(aqi_root):
+        for f in files:
+            if f.endswith('.xlsx') and not f.startswith('全国'):
+                mtime = os.path.getmtime(os.path.join(root, f))
+                if mtime > latest:
+                    latest = mtime
+    return latest
+
+
+# ==============================
 # 全部历史数据汇总
 # ==============================
 def get_all_historical_data(data_folder=None):
     """
     遍历 data_output/aqi/ 下所有批次目录，汇总所有城市-时间戳的完整历史记录。
     返回 (DataFrame, debug_info)。
+
+    优化策略：
+    1. 首次解析后存入 CSV 缓存（data_output/historical_cache.csv）
+    2. 后续调用先检查缓存：如果缓存比所有 xlsx 文件都新，直接从 CSV 加载（快 10-100 倍）
+    3. 仅当有新批次 xlsx 时才重新解析
 
     与 get_latest_aqi_snapshot 不同，本函数保留每个城市的全部小时级记录，
     不截取最新一条，适用于时序趋势分析和建模。
@@ -399,16 +423,36 @@ def get_all_historical_data(data_folder=None):
     fallback_dir = os.path.join(os.path.dirname(__file__), '..', 'data_output', 'aqi')
     aqi_root = base_dir if os.path.exists(base_dir) else fallback_dir
 
+    # CSV 缓存路径
+    cache_dir = os.path.join(os.path.dirname(__file__), '..', 'data_output')
+    csv_cache_path = os.path.join(cache_dir, 'historical_cache.csv')
+
     if not os.path.exists(aqi_root):
         debug.append(f"[错误] 数据目录不存在: {aqi_root}")
         return pd.DataFrame(), debug
 
+    # ── 快速路径：检查 CSV 缓存是否有效 ──
+    if os.path.exists(csv_cache_path):
+        csv_mtime = os.path.getmtime(csv_cache_path)
+        latest_xlsx_mtime = _get_latest_xlsx_mtime(aqi_root)
+        if csv_mtime >= latest_xlsx_mtime:
+            debug.append(f"[缓存命中] CSV 缓存最新，直接加载（跳过 xlsx 解析）")
+            start = time.time()
+            df_cached = pd.read_csv(csv_cache_path)
+            df_cached['datetime'] = pd.to_datetime(df_cached['datetime'])
+            debug.append(f"[缓存] CSV 加载耗时 {time.time() - start:.1f}s，"
+                         f"{len(df_cached)} 条记录")
+            return df_cached, debug
+
+    debug.append("[缓存未命中] CSV 不存在或已过期，开始全量解析 xlsx...")
+
+    # ── 慢路径：全量解析所有 xlsx ──
     # 获取所有批次子目录
     run_dirs = sorted([
         d for d in os.listdir(aqi_root)
         if os.path.isdir(os.path.join(aqi_root, d))
     ])
-    debug.append(f"[统计] 找到 {len(run_dirs)} 个批次目录: {run_dirs}")
+    debug.append(f"[统计] 找到 {len(run_dirs)} 个批次目录")
 
     all_records = []
     for run_dir in run_dirs:
@@ -428,6 +472,12 @@ def get_all_historical_data(data_folder=None):
 
     if not all_records:
         debug.append("[错误] 未解析到任何有效数据")
+        # 如果缓存存在但解析失败，回退到缓存
+        if os.path.exists(csv_cache_path):
+            debug.append("[回退] 使用过期 CSV 缓存")
+            df_cached = pd.read_csv(csv_cache_path)
+            df_cached['datetime'] = pd.to_datetime(df_cached['datetime'])
+            return df_cached, debug
         return pd.DataFrame(), debug
 
     df_all = pd.concat(all_records, ignore_index=True)
@@ -437,6 +487,14 @@ def get_all_historical_data(data_folder=None):
 
     # 按城市和时间排序
     df_all = df_all.sort_values(['city', 'datetime']).reset_index(drop=True)
+
+    # ── 存入 CSV 缓存 ──
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        df_all.to_csv(csv_cache_path, index=False)
+        debug.append(f"[缓存] 已写入 CSV 缓存: {csv_cache_path}")
+    except Exception as e:
+        debug.append(f"[警告] CSV 缓存写入失败: {e}")
 
     debug.append(f"[完成] 共解析 {len(df_all)} 条历史记录，覆盖 {df_all['city'].nunique()} 个城市")
     if 'datetime' in df_all.columns and len(df_all) > 0:

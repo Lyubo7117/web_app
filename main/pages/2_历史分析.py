@@ -91,8 +91,8 @@ if st.button("🔄 刷新分析"):
     st.rerun()
 
 
-# 第一步：加载所有爬虫批次历史数据（带缓存，5分钟内复用）
-@st.cache_data(ttl=300, show_spinner="正在加载历史数据（使用缓存加速）...")
+# 第一步：加载所有爬虫批次历史数据（CSV持久化缓存 + Streamlit内存缓存30分钟）
+@st.cache_data(ttl=1800, show_spinner="正在加载历史数据...")
 def _load_historical():
     return get_all_historical_data()
 
@@ -104,10 +104,10 @@ if df_all.empty:
     st.stop()
 
 
-# 第二步：【关键修复】叠加实时 API 数据，补全至"当前时刻"（带5分钟缓存）
-@st.cache_data(ttl=300, show_spinner="正在获取实时数据...")
+# 第二步：【关键修复】叠加实时 API 数据，补全至"当前时刻"（30分钟缓存）
+@st.cache_data(ttl=1800, show_spinner="正在获取实时数据...")
 def _load_realtime():
-    return fetch_realtime_aqi(cache_ttl=300)
+    return fetch_realtime_aqi(cache_ttl=1800)
 
 with st.spinner("正在获取实时数据，补全最新时段..."):
     df_rt, rt_time, _, rt_source = _load_realtime()
@@ -287,7 +287,7 @@ top_pollutant = "暂未计算出"
 test_score_r2 = 0.0
 
 # 随机森林训练结果缓存（数据不变时复用）
-@st.cache_data(ttl=600, show_spinner="正在训练随机森林模型...")
+@st.cache_data(ttl=3600, show_spinner="正在训练随机森林模型...")
 def _train_rf_model(df_model_input, avail_features_input):
     """训练随机森林并返回结果，避免每次访问重复计算"""
     X = df_model_input[avail_features_input]
