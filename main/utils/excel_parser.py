@@ -386,18 +386,46 @@ def _get_latest_xlsx_mtime(aqi_root):
     return latest
 
 
+def _filter_recent_run_dirs(aqi_root, days=15):
+    """
+    只保留最近 days 天的批次目录（按目录名 YYYYMMDD_* 判断）。
+    返回 (保留的目录列表, 跳过的目录数量)
+    """
+    import datetime
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+    cutoff_str = cutoff.strftime('%Y%m%d')
+
+    all_dirs = sorted([
+        d for d in os.listdir(aqi_root)
+        if os.path.isdir(os.path.join(aqi_root, d))
+    ])
+
+    kept = []
+    skipped = 0
+    for d in all_dirs:
+        # 目录名格式: YYYYMMDD_HHMMSS
+        date_prefix = d[:8] if '_' in d else d
+        if len(date_prefix) >= 8 and date_prefix >= cutoff_str:
+            kept.append(d)
+        else:
+            skipped += 1
+
+    return kept, skipped
+
+
 # ==============================
 # 全部历史数据汇总
 # ==============================
-def get_all_historical_data(data_folder=None):
+def get_all_historical_data(data_folder=None, max_days=15):
     """
-    遍历 data_output/aqi/ 下所有批次目录，汇总所有城市-时间戳的完整历史记录。
-    返回 (DataFrame, debug_info)。
+    遍历 data_output/aqi/ 下最近 max_days 天的批次目录，
+    汇总所有城市-时间戳的完整历史记录。返回 (DataFrame, debug_info)。
 
     优化策略：
-    1. 首次解析后存入 CSV 缓存（data_output/historical_cache.csv）
-    2. 后续调用先检查缓存：如果缓存比所有 xlsx 文件都新，直接从 CSV 加载（快 10-100 倍）
-    3. 仅当有新批次 xlsx 时才重新解析
+    1. 只解析最近 max_days 天的批次目录（目录名 YYYYMMDD_* 判断）
+    2. 解析后存入 pickle 缓存（data_output/historical_cache.pkl）
+    3. 后续调用先检查缓存：如果缓存比所有 xlsx 都新，直接 unpickle
+    4. 仅当有新批次 xlsx 时才重新解析
 
     与 get_latest_aqi_snapshot 不同，本函数保留每个城市的全部小时级记录，
     不截取最新一条，适用于时序趋势分析和建模。
@@ -406,6 +434,8 @@ def get_all_historical_data(data_folder=None):
     ----------
     data_folder : str, optional
         AQI 数据目录路径。默认自动定位。
+    max_days : int, default=15
+        只保留最近 N 天的批次数据，设为 0 则禁用过滤（全量）。
 
     Returns
     -------
@@ -414,45 +444,52 @@ def get_all_historical_data(data_folder=None):
         - debug_info: 调试信息列表
     """
     import pandas as pd
+    import datetime
 
     debug = []
-    debug.append("[开始] get_all_historical_data 执行")
+    debug.append(f"[开始] get_all_historical_data 执行 (max_days={max_days})")
 
     # 路径定位：优先相对当前工作目录，其次相对于本模块所在位置
     base_dir = os.path.join(os.getcwd(), 'main', 'data_output', 'aqi')
     fallback_dir = os.path.join(os.path.dirname(__file__), '..', 'data_output', 'aqi')
     aqi_root = base_dir if os.path.exists(base_dir) else fallback_dir
 
-    # CSV 缓存路径
+    # 缓存路径（pickle 格式，比 CSV 快 5-10 倍）
     cache_dir = os.path.join(os.path.dirname(__file__), '..', 'data_output')
-    csv_cache_path = os.path.join(cache_dir, 'historical_cache.csv')
+    pkl_cache_path = os.path.join(cache_dir, 'historical_cache.pkl')
 
     if not os.path.exists(aqi_root):
         debug.append(f"[错误] 数据目录不存在: {aqi_root}")
         return pd.DataFrame(), debug
 
-    # ── 快速路径：检查 CSV 缓存是否有效 ──
-    if os.path.exists(csv_cache_path):
-        csv_mtime = os.path.getmtime(csv_cache_path)
+    # ── 快速路径：检查 pickle 缓存是否有效 ──
+    if os.path.exists(pkl_cache_path):
+        csv_mtime = os.path.getmtime(pkl_cache_path)
         latest_xlsx_mtime = _get_latest_xlsx_mtime(aqi_root)
         if csv_mtime >= latest_xlsx_mtime:
-            debug.append(f"[缓存命中] CSV 缓存最新，直接加载（跳过 xlsx 解析）")
+            debug.append(f"[缓存命中] pickle 缓存最新，直接加载（跳过 xlsx 解析）")
             start = time.time()
-            df_cached = pd.read_csv(csv_cache_path)
-            df_cached['datetime'] = pd.to_datetime(df_cached['datetime'])
-            debug.append(f"[缓存] CSV 加载耗时 {time.time() - start:.1f}s，"
+            df_cached = pd.read_pickle(pkl_cache_path)
+            debug.append(f"[缓存] pickle 加载耗时 {time.time() - start:.1f}s，"
                          f"{len(df_cached)} 条记录")
             return df_cached, debug
 
-    debug.append("[缓存未命中] CSV 不存在或已过期，开始全量解析 xlsx...")
+    debug.append("[缓存未命中] pickle 不存在或已过期，开始解析 xlsx...")
 
-    # ── 慢路径：全量解析所有 xlsx ──
-    # 获取所有批次子目录
-    run_dirs = sorted([
+    # ── 慢路径：只解析最近 max_days 天的批次 ──
+    all_run_dirs = sorted([
         d for d in os.listdir(aqi_root)
         if os.path.isdir(os.path.join(aqi_root, d))
     ])
-    debug.append(f"[统计] 找到 {len(run_dirs)} 个批次目录")
+
+    if max_days > 0:
+        recent_dirs, skipped = _filter_recent_run_dirs(aqi_root, days=max_days)
+        debug.append(f"[过滤] 总批次 {len(all_run_dirs)} 个，"
+                     f"保留最近 {max_days} 天 {len(recent_dirs)} 个，跳过 {skipped} 个")
+        run_dirs = recent_dirs
+    else:
+        run_dirs = all_run_dirs
+        debug.append(f"[全量] 保留全部 {len(run_dirs)} 个批次目录")
 
     all_records = []
     for run_dir in run_dirs:
@@ -473,10 +510,9 @@ def get_all_historical_data(data_folder=None):
     if not all_records:
         debug.append("[错误] 未解析到任何有效数据")
         # 如果缓存存在但解析失败，回退到缓存
-        if os.path.exists(csv_cache_path):
-            debug.append("[回退] 使用过期 CSV 缓存")
-            df_cached = pd.read_csv(csv_cache_path)
-            df_cached['datetime'] = pd.to_datetime(df_cached['datetime'])
+        if os.path.exists(pkl_cache_path):
+            debug.append("[回退] 使用过期 pickle 缓存")
+            df_cached = pd.read_pickle(pkl_cache_path)
             return df_cached, debug
         return pd.DataFrame(), debug
 
@@ -488,13 +524,13 @@ def get_all_historical_data(data_folder=None):
     # 按城市和时间排序
     df_all = df_all.sort_values(['city', 'datetime']).reset_index(drop=True)
 
-    # ── 存入 CSV 缓存 ──
+    # ── 存入 pickle 缓存 ──
     try:
         os.makedirs(cache_dir, exist_ok=True)
-        df_all.to_csv(csv_cache_path, index=False)
-        debug.append(f"[缓存] 已写入 CSV 缓存: {csv_cache_path}")
+        df_all.to_pickle(pkl_cache_path)
+        debug.append(f"[缓存] 已写入 pickle 缓存: {pkl_cache_path}")
     except Exception as e:
-        debug.append(f"[警告] CSV 缓存写入失败: {e}")
+        debug.append(f"[警告] pickle 缓存写入失败: {e}")
 
     debug.append(f"[完成] 共解析 {len(df_all)} 条历史记录，覆盖 {df_all['city'].nunique()} 个城市")
     if 'datetime' in df_all.columns and len(df_all) > 0:

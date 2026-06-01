@@ -91,12 +91,12 @@ if st.button("🔄 刷新分析"):
     st.rerun()
 
 
-# 第一步：加载所有爬虫批次历史数据（CSV持久化缓存 + Streamlit内存缓存30分钟）
+# 第一步：加载所有爬虫批次历史数据（只保留最近15天，加速加载）
 @st.cache_data(ttl=1800, show_spinner="正在加载历史数据...")
 def _load_historical():
-    return get_all_historical_data()
+    return get_all_historical_data(max_days=15)
 
-with st.spinner("正在从所有历史批次中加载数据..."):
+with st.spinner("正在加载最近15天历史数据..."):
     df_all, debug = _load_historical()
 
 if df_all.empty:

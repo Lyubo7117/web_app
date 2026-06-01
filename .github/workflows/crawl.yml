@@ -35,6 +35,9 @@ jobs:
       - name: 运行预警爬虫脚本
         run: python main/crawlers/weather_alarm_crawler.py
 
+      - name: 预建历史数据缓存（加速 Streamlit 加载）
+        run: python main/build_cache.py
+
       - name: 提交并推送更新
         run: |
           git config --global user.name 'github-actions[bot]'
