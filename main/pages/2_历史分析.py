@@ -94,7 +94,18 @@ if st.button("🔄 刷新分析"):
 # 第一步：加载所有爬虫批次历史数据（只保留最近15天，加速加载）
 @st.cache_data(ttl=1800, show_spinner="正在加载历史数据...")
 def _load_historical():
-    return get_all_historical_data(max_days=15)
+    import pandas as pd
+    # 先尝试带 max_days 参数的新版，失败则手动过滤
+    try:
+        df, dbg = get_all_historical_data(max_days=15)
+    except TypeError:
+        # 旧版 excel_parser.py 不支持 max_days，全量加载后内存过滤
+        df, dbg = get_all_historical_data()
+        if 'datetime' in df.columns and len(df) > 0:
+            df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+            cutoff = pd.Timestamp.now() - pd.Timedelta(days=15)
+            df = df[df['datetime'] >= cutoff].copy()
+    return df, dbg
 
 with st.spinner("正在加载最近15天历史数据..."):
     df_all, debug = _load_historical()
