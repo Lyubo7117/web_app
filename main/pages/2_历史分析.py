@@ -144,8 +144,18 @@ if not df_rt.empty and len(df_rt) > 0:
         df_all = pd.concat([df_all, df_realtime], ignore_index=True)
         df_all = df_all.drop_duplicates(subset=['city', 'datetime'], keep='last')
         df_all = df_all.sort_values(['city', 'datetime']).reset_index(drop=True)
+        # 统一 datetime 为 datetime64 类型（实时数据可能是字符串）
+        if 'datetime' in df_all.columns:
+            df_all['datetime'] = pd.to_datetime(df_all['datetime'], errors='coerce')
 else:
     st.warning("⚠️ 实时数据源暂不可用，当前仅展示爬虫批次数据（每3小时更新）")
+
+
+# ==============================
+# 统一 datetime 列类型（防止 concat 混入字符串导致 .max() 报错）
+# ==============================
+if 'datetime' in df_all.columns:
+    df_all['datetime'] = pd.to_datetime(df_all['datetime'], errors='coerce')
 
 
 # ==============================
@@ -169,7 +179,7 @@ st.markdown(
     f"**覆盖城市：** {city_nunique} 个"
 )
 
-latest_time = df_all['datetime'].max() if 'datetime' in df_all.columns else '未知'
+latest_time = time_max
 st.info(f"📅 最新数据时间点：{latest_time}")
 
 
