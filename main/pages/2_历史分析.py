@@ -429,9 +429,12 @@ if len(daily_avg) >= 7:
     fv = daily_avg.head(7)['全国平均AQI'].mean()
     lv = daily_avg.tail(7)['全国平均AQI'].mean()
     trend_desc = "下降" if lv < fv else "上升"
-    trend_icon = "✅" if trend_desc == "下降" else "⚠️"
+    # AQI 下降 = 空气质量改善，AQI 上升 = 空气质量恶化
+    quality_trend = "改善" if lv < fv else "恶化"
+    trend_icon = "✅" if lv < fv else "⚠️"
 else:
     trend_desc = "数据不足，无法判断趋势"
+    quality_trend = trend_desc
     trend_icon = "📊"
 
 # — 相关性最强因子 —
@@ -445,7 +448,7 @@ if 'aqi_corr' in dir() and len(aqi_corr) > 0:
     corr_desc_str = "正相关" if strongest_corr_val > 0 else "负相关"
 
 summary = f"""
-> {trend_icon} **整体趋势**：近一周全国平均AQI较首周{trend_desc}了约 {abs(change_pct):.1f}%，空气质量呈{trend_desc}趋势。
+> {trend_icon} **整体趋势**：近一周全国平均AQI较首周{trend_desc}了约 {abs(change_pct):.1f}%，空气质量呈{quality_trend}趋势。
 
 > 🌟 **核心驱动因素**：随机森林模型显示，**{top_pollutant}** 是当前影响AQI最重要的污染物，其重要性得分最高。
 
